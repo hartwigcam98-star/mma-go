@@ -2187,7 +2187,7 @@ void main(){
   const stepIn = f => !!(f.gs && f.gs.adv && f.gs.adv === f.dir);
   // footwork: one step's travel (x his size), the plant between steps, and the push-off / land shape (area 1 over a step)
   const STRIDE = 46, PLANT = .1, gaitProf = u => Math.PI / 2 * Math.sin(Math.PI * clamp(u, 0, 1));
-  const STEPCMD = { stepF: [1, 0], stepBk: [-1, 0], sideU: [0, 1], sideD: [0, -1] };
+  const STEPCMD = { stepF: [1, 0], stepBk: [-1, 0], sideU: [0, 1], sideD: [0, -1], sideR: [0, 2], sideL: [0, -2] };
   const HOOKS = ["lhook", "rhook", "bhook", "upper"], ROLLW = ["lhook", "rhook", "overhand", "headk", "sbf", "shk", "bomb"];
   const SUPN = { shk: "Spinning heel kick", bomb: "Overhand bomb", fknee: "Flying knee", slam: "Double-leg slam", flash: "Flash submission" };
   const SUPS = { shk: "HEEL KICK", bomb: "BOMB", fknee: "FLY KNEE", slam: "SLAM", flash: "FLASH SUB" };
@@ -2339,7 +2339,8 @@ void main(){
       const [adv, lat] = STEPCMD[name];
       if (lat && (pinned(f) || backRoom(f) < 80)) return (F.lastRes = dispatch(F, f, o, "pivotU"));
       if (f.act && f.act.type === "slip" && f.act.t < .16) { f.stam = Math.min(capNow(f), f.stam + 1.5); f.act = null; f.slipI = 0; }   // the touch that began the swipe was a step, not a slip
-      f.stepReq = { adv: adv * f.dir, lat: lat * (F.latUp || 1), t: .35 }; f.autoHold = Math.max(f.autoHold || 0, 1.3); f.q = null;
+      // lat ±1: up / down on screen; ±2: right / left on screen (which way that is around him depends on the camera)
+      f.stepReq = { adv: adv * f.dir, lat: Math.abs(lat) === 2 ? Math.sign(lat) * (F.latScr || 1) : lat * (F.latUp || 1), t: .35 }; f.autoHold = Math.max(f.autoHold || 0, 1.3); f.q = null;
       return (F.lastRes = true);
     }
     if (f.human && (name === "hook" || name === "body")) name = padPunch(F, f, name);
@@ -2494,7 +2495,7 @@ void main(){
     else if (c === "top") n = z === "R" ? ({ tap: "gnp", hold: "gnp", up: "kick", holdUp: "kick" })[g] : z === "L" ? ({ fwd: "slip", back: "td" })[g] : "slip";
     else if (c === "bot") n = z === "R" ? ({ tap: "jab", hold: "jab", up: "kick", holdUp: "kick" })[g] : z === "L" ? ({ tap: "td", fwd: "td", back: "td", up: "slip" })[g] : "td";
     else if (c === "clinch") n = z === "R" ? ({ tap: "clnext", hold: "elbow", up: "kneeh", holdUp: "kneeh", fwd: "knee", back: "dirty" })[g] : z === "L" ? ({ tap: "slip", back: "slip" })[g] : "td";
-    else n = z === "R" ? ({ tap: "combo", hold: "power", up: "kickU", holdUp: "spin", fwd: "kickF", back: "kickB" })[g] : z === "L" ? ({ tap: "slip", dbl: "roll", fwd: "stepF", back: "stepBk", up: "sideU", down: "sideD", fwdL: "dashF", backL: "dashB" })[g] : "td";
+    else n = z === "R" ? ({ tap: "combo", hold: "power", up: "kickU", holdUp: "spin", fwd: "kickF", back: "kickB" })[g] : z === "L" ? ({ tap: "slip", dbl: "roll", fwd: "stepF", back: "stepBk", up: "sideU", down: "sideD", sideR: "sideR", sideL: "sideL", fwdL: "dashF", backL: "dashB" })[g] : "td";
     F.lastRes = null;
     if (n) cmd(F, side, n);
     return n || null;
@@ -4127,9 +4128,9 @@ void main(){
   const KEYBTN = n => n.startsWith("@") ? ({ "@grapple": "grapple", "@tap": "defend", "@block": "defend", "@left": "left", "@right": "right" })[n] : ["feint", "switch", "super"].includes(n) ? n : n.startsWith("pivot") ? "up" : ST[n] && ST[n].kick ? "kick" : "punch";
   const MOVES = [
     ["Footwork", "Real steps: each one commits (no turning round halfway) and the feet plant between steps. Automatic keeps your range with a few steps and gets you off the fence (classic pad: hold ◀ ▶). A strike off a step forward reaches further and hits harder; walking onto his shot hurts more; a side step makes straight shots miss", "A D or ← → to override"],
-    ["Step in / step out", "Left zone: swipe toward him / away from him. One swipe = one step; your fighter keeps his distance on his own between your steps", "A / D (hold)"],
-    ["Circle (side step)", "Left zone: swipe ↑ or ↓. Against the fence it becomes a pivot off it", "Q or ↑"],
-    ["Dash in / out", "Left zone: a long, fast swipe toward him / away from him", "Double-tap A or D"],
+    ["Step in / step out", "Left zone: swipe ↑ (in, toward him) or ↓ (out). One swipe = one step; your fighter keeps his distance on his own between your steps", "A / D (hold)"],
+    ["Side step (circle)", "Left zone: swipe ← or →. Against the fence it becomes a pivot off it", "Q or ↑"],
+    ["Dash in / out", "Left zone: a long, fast swipe ↑ or ↓", "Double-tap A or D"],
     ["Punch button (strike pad)", "Tap jab · swipe toward him cross · ↑ hook (left, then right) · ↓ to the body · away uppercut · hold overhand · hold then ↑ spinning back fist", "J jab · K cross · U / I hooks · H / N body · O uppercut · Y overhand"],
     ["Kick button (strike pad)", "Tap leg kick · swipe toward him body kick · ↑ head kick · away teep · hold spinning back kick", "M leg · L body · ; head · , teep · . spin"],
     ["Combos and flow", "Chain strikes inside the combo window. Change hands or levels (head → body → legs) and each shot FLOWS: more accurate, harder, cheaper. Throwing the same strike twice in a row is easy to read. The lit directions on the pad flow from your last shot", "—"],
@@ -4518,7 +4519,7 @@ void main(){
     // The left zone acts the instant it is touched (a slip standing, an escape attempt on your back) and blocks while held.
     // Swipes register at 24 px (or a quick 14 px flick), within a wide cone: up = within 50° of vertical, sideways = within
     // 55° of horizontal; down does nothing. A right-zone tap fires on lift; a hold past 0.3 s makes it the power version.
-    const ZWORD = { stepF: "STEP IN", stepBk: "STEP OUT", sideU: "SIDE STEP", sideD: "SIDE STEP", roll: "ROLL!", combo: "", power: "POWER", kickU: "HEAD KICK", spin: "SPIN!", kickF: "BODY KICK", kickB: "TEEP", slip: "SLIP!", dashF: "DASH IN", dashB: "STEP BACK", pivotU: "PIVOT", td: "GRAPPLE", super: "SUPER!" };
+    const ZWORD = { stepF: "STEP IN", stepBk: "STEP OUT", sideU: "SIDE STEP", sideD: "SIDE STEP", sideR: "SIDE STEP", sideL: "SIDE STEP", roll: "ROLL!", combo: "", power: "POWER", kickU: "HEAD KICK", spin: "SPIN!", kickF: "BODY KICK", kickB: "TEEP", slip: "SLIP!", dashF: "DASH IN", dashB: "STEP BACK", pivotU: "PIVOT", td: "GRAPPLE", super: "SUPER!" };
     const zones = $(".ma-zones"), ptrs = new Map(), Lptrs = new Set();
     function zoneFire(z, g, el) {
       const n = zoneAction(F, 0, z, g), res = F.lastRes;
@@ -4608,6 +4609,8 @@ void main(){
       else st.tm = setTimeout(() => { st.armed = true; el.classList.add("charge"); if (ctxName() === "stand") F.f[0].charge = true; }, 300);
       ptrs.set(e.pointerId, st);
     });
+    // the left zone standing: the swipe's own direction on screen. Up = step in, down = step out, left / right = side step
+    function footDir(dx, dy) { return Math.abs(dy) >= Math.abs(dx) ? (dy < 0 ? "fwd" : "back") : dx > 0 ? "sideR" : "sideL"; }
     function swipeFire(st, e, g, id) {
       st.done = true; st.sg = g; if (st.z === "L") lastL.tap = false; clearTimeout(st.tm); st.el.classList.remove("charge"); F.f[0].charge = false;
       if (st.z === "L") holdOff(id);
@@ -4617,7 +4620,7 @@ void main(){
       const st = ptrs.get(e.pointerId); if (!st || st.z === "G") return;
       const dx = e.clientX - st.x0, dy = e.clientY - st.y0;
       if (st.done) {
-        if (st.z === "L" && (st.sg === "fwd" || st.sg === "back") && !st.dashed && Math.abs(dx) >= 90 && (e.timeStamp || performance.now()) - st.t0 < 320 && ctxName() === "stand") { st.dashed = true; zoneFire("L", st.sg + "L", st.el); }
+        if (st.z === "L" && (st.sg === "fwd" || st.sg === "back") && !st.dashed && Math.abs(dy) >= 90 && (e.timeStamp || performance.now()) - st.t0 < 320 && ctxName() === "stand") { st.dashed = true; zoneFire("L", st.sg + "L", st.el); }
         return;
       }
       if (st.p) { if (Math.hypot(dx, dy) >= 22) { const g = swipeDir(dx, dy), held = (e.timeStamp || performance.now()) - st.t0 >= 280; if (g) { st.done = true; clearTimeout(st.tm); st.el.classList.remove("charge"); padFire(st.el, st.k, g === "up" && held ? "holdUp" : g); } } return; }
@@ -4628,6 +4631,7 @@ void main(){
         return;
       }
       if (Math.hypot(dx, dy) < 24) return;
+      if (st.z === "L" && ctxName() === "stand") { swipeFire(st, e, footDir(dx, dy), e.pointerId); return; }
       let g = swipeDir(dx, dy);
       if (g === "down" && (st.z !== "L" || ctxName() !== "stand")) g = null;
       if (!g) { if (!st.ign) { st.ign = 1; dbg(st.z, "swipe ↓", null); } return; }
@@ -4660,7 +4664,7 @@ void main(){
         return;
       }
       // a short, quick flick still counts as a swipe
-      if (e.type === "pointerup" && Math.hypot(dx, dy) >= 14 && dur < 260) { let g = swipeDir(dx, dy); if (g === "down" && (st.z !== "L" || ctxName() !== "stand")) g = null; if (g) { if (g === "up" && st.z === "R" && st.armed) g = "holdUp"; swipeFire(st, e, g, e.pointerId); return; } }
+      if (e.type === "pointerup" && Math.hypot(dx, dy) >= 14 && dur < 260) { let g = st.z === "L" && ctxName() === "stand" ? footDir(dx, dy) : swipeDir(dx, dy); if (g === "down" && (st.z !== "L" || ctxName() !== "stand")) g = null; if (g) { if (g === "up" && st.z === "R" && st.armed) g = "holdUp"; swipeFire(st, e, g, e.pointerId); return; } }
       if (st.z === "L") { holdOff(e.pointerId); if (e.type === "pointerup" && dur < 220 && ctxName() === "downA") zoneFire("L", "tap", st.el); }
       else if (e.type === "pointerup") zoneFire("R", st.armed ? "hold" : "tap", st.el);
     };
@@ -4717,9 +4721,9 @@ void main(){
       if (c === "clinch") { const fh = F.c && F.c.fhl && F.c.dom !== me; return { L: [fh ? "FIGHT OUT" : "FRAME", [["hold", "frame"], ["tap", "break away"]]], R: fh ? ["—", [["", "caught: tap Left"]]] : ["KNEES", [["tap", "knee / short"], ["hold", "elbow"], ["↑", "head knee"]]], coach: fh ? "Front headlock: tap Left to fight out" : "Clinch: Right tap knees · hold elbow · ↑ head knee | Left tap break | Grapple trip" }; }
       const ready = me.perfectT > 0;
       return {
-        L: [spad ? "DEFENSE" : "DEFENSE", spad ? [["tap", "slip"], ["2×tap", "roll"], ["hold", "block"], [bk + fw, "step"], ["↑↓", me.dir && pinned(me) ? "pivot off!" : "circle"], ["long", "dash"]] : [["touch", "slip"], ["2×tap", "roll"], ["hold", "block"], [bk + " " + fw, "step out / in"], ["↑ ↓", me.dir && pinned(me) ? "pivot off!" : "circle"], ["long →", "dash"]]],
+        L: [spad ? "DEFENSE" : "DEFENSE", spad ? [["tap", "slip"], ["2×tap", "roll"], ["hold", "block"], ["↑ ↓", "in / out"], ["← →", me.dir && pinned(me) ? "pivot off!" : "side step"], ["long ↑↓", "dash"]] : [["touch", "slip"], ["2×tap", "roll"], ["hold", "block"], ["↑ ↓", "step in / out"], ["← →", me.dir && pinned(me) ? "pivot off!" : "side step"], ["long ↑ ↓", "dash"]]],
         R: [ready ? "COUNTER!" : "TAP · " + peek().toUpperCase(), [["hold", d < me.k.reachP * .78 ? "power hook" : "overhand"], ["↑", "head kick"], [fw, d < me.k.reachK * .66 ? "leg kick" : "body kick"], [bk, "teep"], ["hold ↑", "spin"]]],
-        coach: op.rocked > 0 ? "He's ROCKED: land 3 clean or one power shot" : me.sup >= 100 ? "Super ready: tap ★ " + SUPS[me.sig] : spad ? "Punch / Kick: tap or swipe a direction | Left: swipe to step and circle · tap slip · double-tap roll · hold block" : "Right: tap combo · hold power · swipe kicks | Left: touch slip · hold block · swipe move"
+        coach: op.rocked > 0 ? "He's ROCKED: land 3 clean or one power shot" : me.sup >= 100 ? "Super ready: tap ★ " + SUPS[me.sig] : spad ? "Punch / Kick: tap or swipe a direction | Left: swipe ↑ in · ↓ out · ←→ side step · tap slip · double-tap roll · hold block" : "Right: tap combo · hold power · swipe kicks | Left: touch slip · hold block · swipe move"
       };
     }
     function zoneHud() {
@@ -4830,7 +4834,7 @@ void main(){
       const t = 300 - F.clockF(), key = F.rd + "|" + Math.ceil(t);
       if (key !== hudCache) { hudCache = key; $(".ma-rd").textContent = practice ? "PRACTICE" : `R${F.rd}/${F.nr}`; $(".ma-time").textContent = practice ? "GYM" : mmss(Math.ceil(t)); }
       if (mode === "zones") zoneHud();
-      padHud(); F.latUp = V.latUp || 1;   // which way "up" on the screen is, for a side step
+      padHud(); F.latUp = V.latUp || 1; F.latScr = V.latScr || 1;   // which way "up" on the screen is, for a side step
       gymHud();
       const me = F.f[0], op = F.f[1], rdy = me.sup >= 100 && ctxName() === "stand";
       root.querySelectorAll(".ma-supc").forEach(c => { c.classList.toggle("rdy", rdy); c.classList.toggle("dis", !rdy); c.setAttribute("aria-disabled", String(!rdy)); });
@@ -5276,7 +5280,7 @@ void main(){
     };
   }
 
-  window.MMAArcade = { start, version: "3.5", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
+  window.MMAArcade = { start, version: "3.5.1", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
 })();
 </script>
 <script>
