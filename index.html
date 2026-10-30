@@ -2187,6 +2187,7 @@ void main(){
   const stepIn = f => !!(f.gs && f.gs.adv && f.gs.adv === f.dir);
   // footwork: one step's travel (x his size), the plant between steps, and the push-off / land shape (area 1 over a step)
   const STRIDE = 46, PLANT = .1, gaitProf = u => Math.PI / 2 * Math.sin(Math.PI * clamp(u, 0, 1));
+  const STEPCMD = { stepF: [1, 0], stepBk: [-1, 0], sideU: [0, 1], sideD: [0, -1] };
   const HOOKS = ["lhook", "rhook", "bhook", "upper"], ROLLW = ["lhook", "rhook", "overhand", "headk", "sbf", "shk", "bomb"];
   const SUPN = { shk: "Spinning heel kick", bomb: "Overhand bomb", fknee: "Flying knee", slam: "Double-leg slam", flash: "Flash submission" };
   const SUPS = { shk: "HEEL KICK", bomb: "BOMB", fknee: "FLY KNEE", slam: "SLAM", flash: "FLASH SUB" };
@@ -2331,10 +2332,20 @@ void main(){
   function cmd(F, side, name) {
     if (F.phase !== "fight") return (F.lastRes = false);
     const f = F.f[side], o = F.f[1 - side];
+    if (STEPCMD[name]) {
+      // a single deliberate step (left-zone swipe): in, out, or to the side. It takes over from the auto footwork for a moment;
+      // against the fence a side step becomes a pivot off it
+      if (f.mode !== "stand" || F.g || F.c || F.down || F.m) return (F.lastRes = false);
+      const [adv, lat] = STEPCMD[name];
+      if (lat && (pinned(f) || backRoom(f) < 80)) return (F.lastRes = dispatch(F, f, o, "pivotU"));
+      if (f.act && f.act.type === "slip" && f.act.t < .16) { f.stam = Math.min(capNow(f), f.stam + 1.5); f.act = null; f.slipI = 0; }   // the touch that began the swipe was a step, not a slip
+      f.stepReq = { adv: adv * f.dir, lat: lat * (F.latUp || 1), t: .35 }; f.autoHold = Math.max(f.autoHold || 0, 1.3); f.q = null;
+      return (F.lastRes = true);
+    }
     if (f.human && (name === "hook" || name === "body")) name = padPunch(F, f, name);
     if (f.q && !ST[name]) f.q = null;   // defence, footwork or a grapple: the strikes still waiting are dropped
     // footwork (and the grapple button) can cut a slip short: the slip fires on touch, the swipe a moment later
-    if (f.act && (f.act.type === "slip" || f.act.type === "roll") && f.act.t < .16 && CANCEL.includes(name) && f.mode === "stand" && !F.g && !F.down && !F.m) { f.stam = Math.min(capNow(f), f.stam + 1.5); f.act = null; f.slipI = f.rollI = 0; }
+    if (f.act && (f.act.type === "slip" || f.act.type === "roll") && f.act.t < (name === "roll" ? .32 : .16) && CANCEL.includes(name) && f.mode === "stand" && !F.g && !F.down && !F.m) { f.stam = Math.min(capNow(f), f.stam + 1.5); f.act = null; f.slipI = f.rollI = 0; }
     if (!F.m && !F.down && !F.g && (f.act || f.stun > 0) && (f.mode === "stand" || f.mode === "clinch")) {
       // the input buffer: a tap during recovery fires as soon as he can (0.18 s window). The strike a step-in is carrying is
       // kept, and the tap queues behind it, so a quick double tap from the outside is a real one-two
@@ -2483,7 +2494,7 @@ void main(){
     else if (c === "top") n = z === "R" ? ({ tap: "gnp", hold: "gnp", up: "kick", holdUp: "kick" })[g] : z === "L" ? ({ fwd: "slip", back: "td" })[g] : "slip";
     else if (c === "bot") n = z === "R" ? ({ tap: "jab", hold: "jab", up: "kick", holdUp: "kick" })[g] : z === "L" ? ({ tap: "td", fwd: "td", back: "td", up: "slip" })[g] : "td";
     else if (c === "clinch") n = z === "R" ? ({ tap: "clnext", hold: "elbow", up: "kneeh", holdUp: "kneeh", fwd: "knee", back: "dirty" })[g] : z === "L" ? ({ tap: "slip", back: "slip" })[g] : "td";
-    else n = z === "R" ? ({ tap: "combo", hold: "power", up: "kickU", holdUp: "spin", fwd: "kickF", back: "kickB" })[g] : z === "L" ? ({ tap: "slip", fwd: "dashF", back: "dashB", up: "pivotU", down: "roll" })[g] : "td";
+    else n = z === "R" ? ({ tap: "combo", hold: "power", up: "kickU", holdUp: "spin", fwd: "kickF", back: "kickB" })[g] : z === "L" ? ({ tap: "slip", dbl: "roll", fwd: "stepF", back: "stepBk", up: "sideU", down: "sideD", fwdL: "dashF", backL: "dashB" })[g] : "td";
     F.lastRes = null;
     if (n) cmd(F, side, n);
     return n || null;
@@ -3135,7 +3146,7 @@ void main(){
     if (F.phase !== "break") return;
     F.rd++; F.clock = 0; F.phase = "intro"; F.phaseT = 1.4; F.cmbShow = [null, null];
     for (const f of F.f) {
-      f.st = newStats(); f.mode = "stand"; f.act = null; f.buf = f.buf2 = f.q = null; f.stun = 0; f.kdRd = 0; f.vx = 0; f.vw = 0; f.lvE = 0; f.gs = null; f.plant = 0; f.lvStep = 0; f.lvS = 0; f.lastStep = null; f.sinceStep = 1; f.spD = 0; f.depth = 0;
+      f.st = newStats(); f.mode = "stand"; f.act = null; f.buf = f.buf2 = f.q = null; f.stun = 0; f.kdRd = 0; f.vx = 0; f.vw = 0; f.lvE = 0; f.gs = null; f.stepReq = null; f.plant = 0; f.lvStep = 0; f.lvS = 0; f.lastStep = null; f.sinceStep = 1; f.spD = 0; f.depth = 0;
       f.counterT = f.whiff = f.slipI = f.rollI = f.rollHook = f.pullT = f.sprawlT = f.dashT = f.angleT = f.switchT = f.baited = f.catchT = f.feintT = f.pivI = 0; f.cmb = null; f.snap = null;
       f.rocked = f.rockHits = f.daze = f.rockCd = f.perfectT = 0; f.guard = 100; f.sprawlGood = false; f.charge = false; f.tell = null;
       f.dmg.head *= .66; f.dmg.body *= .85; f.dmg.leg *= .85;
@@ -3240,6 +3251,18 @@ void main(){
       // A strike thrown mid-step rides the step in; getting hit, a dash, a shot or leaving the feet cuts it short
       f.lvStep = 0;
       if (f.gs && (f.stun > 0 || f.mode !== "stand" || (a && ["dash", "td", "pivot", "fknee", "sprawl", "tie", "flash"].includes(a.type)))) { f.gs = null; f.plant = .1; }
+      if (f.stepReq) {
+        const q = f.stepReq; q.t -= dt;
+        if (q.t <= 0) f.stepReq = null;
+        else if (canMove && f.mode === "stand" && (!f.gs || !f.gs.man)) {
+          f.stepReq = null; f.gs = null;
+          if (!(q.adv === -f.dir && pinned(f))) {
+            const back = q.adv === -f.dir, sp = f.k.speed * (f.blocking ? .55 : 1) * (1 - f.dmg.leg / 190) * (.7 + .3 * stamF(f)) * (back ? .92 : 1) * (f.rocked > 0 ? .6 : 1);
+            const len = STRIDE * f.k.size * (q.adv ? 1.05 : .9);
+            f.gs = { adv: q.adv, lat: q.lat, len, t: 0, dur: clamp(len / (sp * .95), .22, .46), back, m: 1, man: true };
+          }
+        }
+      }
       if (!f.gs) {
         f.plant = Math.max(0, (f.plant || 0) - dt); f.sinceStep = (f.sinceStep || 0) + dt;
         const sh = F.f[1 - f.side].act;   // he shoots: backing off it is never held up by the plant
@@ -3314,6 +3337,7 @@ void main(){
     const room = backRoom(f), oroom = backRoom(o);
     f.cut = false;
     if (room < 70 + 90 * smart && !(f.act && ST[f.act.type])) { f.lat = latToCenter(F, f); return; }
+    if (f.human && f.autoHold > 0) { f.lat = 0; return; }
     if (oroom < 190 && (o.lat || o.latB > 0) && rng() < .4 + .6 * smart) { f.lat = -(o.latB > 0 ? o.latBD : o.lat); f.cut = true; return; }
     if (f.latT <= 0) { f.latT = 1 + rng() * 1.8; f.latV = rng() < circ ? (rng() < .5 ? -1 : 1) * (.3 + .3 * rng()) : 0; if (f.latV && room < 260) f.latV = Math.abs(f.latV) * latToCenter(F, f); }
     f.lat = f.act && ST[f.act.type] ? 0 : f.latV;
@@ -4103,8 +4127,9 @@ void main(){
   const KEYBTN = n => n.startsWith("@") ? ({ "@grapple": "grapple", "@tap": "defend", "@block": "defend", "@left": "left", "@right": "right" })[n] : ["feint", "switch", "super"].includes(n) ? n : n.startsWith("pivot") ? "up" : ST[n] && ST[n].kick ? "kick" : "punch";
   const MOVES = [
     ["Footwork", "Real steps: each one commits (no turning round halfway) and the feet plant between steps. Automatic keeps your range with a few steps and gets you off the fence (classic pad: hold ◀ ▶). A strike off a step forward reaches further and hits harder; walking onto his shot hurts more; a side step makes straight shots miss", "A D or ← → to override"],
-    ["Dash in / step back", "Left zone: swipe toward him / away from him (a short flick works)", "Double-tap A or D"],
-    ["Pivot (new angle, off the fence)", "Left zone: swipe ↑ (classic: tap ▲ or ▼)", "Q or ↑"],
+    ["Step in / step out", "Left zone: swipe toward him / away from him. One swipe = one step; your fighter keeps his distance on his own between your steps", "A / D (hold)"],
+    ["Circle (side step)", "Left zone: swipe ↑ or ↓. Against the fence it becomes a pivot off it", "Q or ↑"],
+    ["Dash in / out", "Left zone: a long, fast swipe toward him / away from him", "Double-tap A or D"],
     ["Punch button (strike pad)", "Tap jab · swipe toward him cross · ↑ hook (left, then right) · ↓ to the body · away uppercut · hold overhand · hold then ↑ spinning back fist", "J jab · K cross · U / I hooks · H / N body · O uppercut · Y overhand"],
     ["Kick button (strike pad)", "Tap leg kick · swipe toward him body kick · ↑ head kick · away teep · hold spinning back kick", "M leg · L body · ; head · , teep · . spin"],
     ["Combos and flow", "Chain strikes inside the combo window. Change hands or levels (head → body → legs) and each shot FLOWS: more accurate, harder, cheaper. Throwing the same strike twice in a row is easy to read. The lit directions on the pad flow from your last shot", "—"],
@@ -4117,7 +4142,7 @@ void main(){
     ["Spinning back kick / back fist", "Right zone: hold, then swipe ↑", "period, /"],
     ["Block", "Left zone: hold. Blocking wears your guard meter down: power shots and kicks crack it", "Hold S or Space"],
     ["Slip · perfect slip", "Left zone: touch (it fires the instant you touch). Just before his shot lands = perfect slip: a counter that can't miss and staggers him", "W"],
-    ["Roll", "Left zone: swipe ↓. Ducks every head shot except the uppercut (which punishes it). Roll right under a hook, overhand or head kick = perfect roll: a sure counter, and your hooks hit harder", "R"],
+    ["Roll", "Left zone: double-tap. Ducks every head shot except the uppercut (which punishes it). Roll right under a hook, overhand or head kick = perfect roll: a sure counter, and your hooks hit harder", "R"],
     ["Pull counter", "Step back (left zone swipe away) as he throws: if it falls short you get a counter window", "Double-tap back"],
     ["Check · timed check", "Hold block as his leg kick comes. Raise it right as the kick lands = timed check: he eats your shin and you get a counter", "S just in time"],
     ["Takedown · clinch · sprawl · catch", "Grapple button. He dips before he shoots: sprawl in the dip for a front headlock; a late sprawl is a scramble", "G"],
@@ -4284,7 +4309,7 @@ void main(){
     const $ = s => root.querySelector(s);
     const cv = $(".ma-2d"), glcv = $(".ma-gl"), ctx = cv.getContext("2d"), stage = $(".ma-stage"), sr = $(".ma-sr");
     if (!has3d) root.querySelectorAll(".ma-3dopt").forEach(el => el.hidden = true);
-    const V = { w: 360, h: 240, dpr: 1, cam: { x: 0, s: 1 }, rm, shake: 0, scn: makeScenery(F.seed), time: 0, hint: practice ? "" : touch ? (mode === "zones" ? (spad ? "Punch / Kick: tap or swipe · Left: touch slip · ↓ roll · hold block" : "Right: tap to strike · Left: hold to block · touch to slip") : "◀ ▶ move · Punch / Kick to strike · hold Defend to block") : "A/D move · J jab · K cross · U/I hooks · L kick · W slip · R roll · S block · G grapple · ? for every move" };
+    const V = { w: 360, h: 240, dpr: 1, cam: { x: 0, s: 1 }, rm, shake: 0, scn: makeScenery(F.seed), time: 0, hint: practice ? "" : touch ? (mode === "zones" ? (spad ? "Punch / Kick: tap or swipe · Left: swipe to step · tap slip · 2×tap roll · hold block" : "Right: tap to strike · Left: hold to block · touch to slip") : "◀ ▶ move · Punch / Kick to strike · hold Defend to block") : "A/D move · J jab · K cross · U/I hooks · L kick · W slip · R roll · S block · G grapple · ? for every move" };
     const bars = [0, 1].map(i => { const el = $(".ma-s" + i); return { stam: el.querySelector(".ma-stam i"), sup: el.querySelector(".ma-supb i"), supb: el.querySelector(".ma-supb"), h: el.querySelectorAll(".ma-hbl i"), stc: el.querySelector(".ma-stc") }; });
     let frozen = false, paused = false, raf = 0, last = 0, done = false, lastLabels = "", breakT = 0, land = false, hitStop = 0;
     const held = { left: false, right: false, up: false, down: false }, used = { up: false, down: false }, t0 = {}, lastTap = { left: 0, right: 0 }, hp = {};
@@ -4493,7 +4518,7 @@ void main(){
     // The left zone acts the instant it is touched (a slip standing, an escape attempt on your back) and blocks while held.
     // Swipes register at 24 px (or a quick 14 px flick), within a wide cone: up = within 50° of vertical, sideways = within
     // 55° of horizontal; down does nothing. A right-zone tap fires on lift; a hold past 0.3 s makes it the power version.
-    const ZWORD = { roll: "ROLL!", combo: "", power: "POWER", kickU: "HEAD KICK", spin: "SPIN!", kickF: "BODY KICK", kickB: "TEEP", slip: "SLIP!", dashF: "DASH IN", dashB: "STEP BACK", pivotU: "PIVOT", td: "GRAPPLE", super: "SUPER!" };
+    const ZWORD = { stepF: "STEP IN", stepBk: "STEP OUT", sideU: "SIDE STEP", sideD: "SIDE STEP", roll: "ROLL!", combo: "", power: "POWER", kickU: "HEAD KICK", spin: "SPIN!", kickF: "BODY KICK", kickB: "TEEP", slip: "SLIP!", dashF: "DASH IN", dashB: "STEP BACK", pivotU: "PIVOT", td: "GRAPPLE", super: "SUPER!" };
     const zones = $(".ma-zones"), ptrs = new Map(), Lptrs = new Set();
     function zoneFire(z, g, el) {
       const n = zoneAction(F, 0, z, g), res = F.lastRes;
@@ -4545,6 +4570,7 @@ void main(){
       if (Math.abs(dx) >= Math.abs(dy) * .7) return (dx > 0) === (sd() === 1) ? "fwd" : "back";
       return dy > 0 && Math.abs(dx) <= dy * 1.2 ? "down" : null;   // down: the roll (left zone only)
     }
+    const lastL = { t: -1e9, tap: false };
     const holdOn = id => { Lptrs.add(id); zoneAction(F, 0, "L", "holdStart"); };
     const holdOff = id => { if (!Lptrs.delete(id)) return; if (!Lptrs.size) zoneAction(F, 0, "L", "holdEnd"); };
     zones.addEventListener("pointerdown", e => {
@@ -4571,18 +4597,29 @@ void main(){
         ptrs.set(e.pointerId, st); return;
       }
       // (on top, touching left is posture; standing over a downed man, letting him up waits for a deliberate quick tap)
-      if (z === "L") { if (c !== "top" && c !== "downA") zoneFire("L", "touch", el); holdOn(e.pointerId); dbg("L", "hold", "block", true); }
+      if (z === "L") {
+        // a second touch right after a tap: the roll (the first tap's slip turns into it)
+        const dbl = c === "stand" && lastL.tap && now - lastL.t < 300;
+        lastL.t = now; lastL.tap = true; st.l = 1;
+        if (c !== "top" && c !== "downA") zoneFire("L", dbl ? "dbl" : "touch", el);
+        if (dbl) lastL.tap = false;
+        holdOn(e.pointerId); dbg("L", "hold", "block", true);
+      }
       else st.tm = setTimeout(() => { st.armed = true; el.classList.add("charge"); if (ctxName() === "stand") F.f[0].charge = true; }, 300);
       ptrs.set(e.pointerId, st);
     });
     function swipeFire(st, e, g, id) {
-      st.done = true; clearTimeout(st.tm); st.el.classList.remove("charge"); F.f[0].charge = false;
+      st.done = true; st.sg = g; if (st.z === "L") lastL.tap = false; clearTimeout(st.tm); st.el.classList.remove("charge"); F.f[0].charge = false;
       if (st.z === "L") holdOff(id);
       ripple(st.el, e.clientX, e.clientY, "sw"); zoneFire(st.z, g, st.el);
     }
     zones.addEventListener("pointermove", e => {
-      const st = ptrs.get(e.pointerId); if (!st || st.done || st.z === "G") return;
+      const st = ptrs.get(e.pointerId); if (!st || st.z === "G") return;
       const dx = e.clientX - st.x0, dy = e.clientY - st.y0;
+      if (st.done) {
+        if (st.z === "L" && (st.sg === "fwd" || st.sg === "back") && !st.dashed && Math.abs(dx) >= 90 && (e.timeStamp || performance.now()) - st.t0 < 320 && ctxName() === "stand") { st.dashed = true; zoneFire("L", st.sg + "L", st.el); }
+        return;
+      }
       if (st.p) { if (Math.hypot(dx, dy) >= 22) { const g = swipeDir(dx, dy), held = (e.timeStamp || performance.now()) - st.t0 >= 280; if (g) { st.done = true; clearTimeout(st.tm); st.el.classList.remove("charge"); padFire(st.el, st.k, g === "up" && held ? "holdUp" : g); } } return; }
       if (st.stick) {
         const dd = Math.hypot(dx, dy);
@@ -4680,9 +4717,9 @@ void main(){
       if (c === "clinch") { const fh = F.c && F.c.fhl && F.c.dom !== me; return { L: [fh ? "FIGHT OUT" : "FRAME", [["hold", "frame"], ["tap", "break away"]]], R: fh ? ["—", [["", "caught: tap Left"]]] : ["KNEES", [["tap", "knee / short"], ["hold", "elbow"], ["↑", "head knee"]]], coach: fh ? "Front headlock: tap Left to fight out" : "Clinch: Right tap knees · hold elbow · ↑ head knee | Left tap break | Grapple trip" }; }
       const ready = me.perfectT > 0;
       return {
-        L: [spad ? "DEFENSE" : "DEFENSE", spad ? [["tap", "slip"], ["hold", "block"], ["↓", "roll"], [bk, "back"], [fw, "in"], ["↑", "pivot"]] : [["touch", "slip"], ["hold", "block"], ["↓", "roll"], [bk, "step back"], [fw, "dash in"], ["↑", me.dir && pinned(me) ? "pivot off!" : "pivot"]]],
+        L: [spad ? "DEFENSE" : "DEFENSE", spad ? [["tap", "slip"], ["2×tap", "roll"], ["hold", "block"], [bk + fw, "step"], ["↑↓", me.dir && pinned(me) ? "pivot off!" : "circle"], ["long", "dash"]] : [["touch", "slip"], ["2×tap", "roll"], ["hold", "block"], [bk + " " + fw, "step out / in"], ["↑ ↓", me.dir && pinned(me) ? "pivot off!" : "circle"], ["long →", "dash"]]],
         R: [ready ? "COUNTER!" : "TAP · " + peek().toUpperCase(), [["hold", d < me.k.reachP * .78 ? "power hook" : "overhand"], ["↑", "head kick"], [fw, d < me.k.reachK * .66 ? "leg kick" : "body kick"], [bk, "teep"], ["hold ↑", "spin"]]],
-        coach: op.rocked > 0 ? "He's ROCKED: land 3 clean or one power shot" : me.sup >= 100 ? "Super ready: tap ★ " + SUPS[me.sig] : spad ? "Punch / Kick: tap or swipe a direction · mix them to flow | Left: touch slip · ↓ roll · hold block" : "Right: tap combo · hold power · swipe kicks | Left: touch slip · hold block · swipe move"
+        coach: op.rocked > 0 ? "He's ROCKED: land 3 clean or one power shot" : me.sup >= 100 ? "Super ready: tap ★ " + SUPS[me.sig] : spad ? "Punch / Kick: tap or swipe a direction | Left: swipe to step and circle · tap slip · double-tap roll · hold block" : "Right: tap combo · hold power · swipe kicks | Left: touch slip · hold block · swipe move"
       };
     }
     function zoneHud() {
@@ -4752,7 +4789,7 @@ void main(){
       { id: "kick", t: () => mode === "zones" && spad ? "Mix levels: tap PUNCH (jab), then tap KICK (leg kick). Changing level makes the combo flow." : mode === "zones" ? "SWIPE UP on the right zone: head kick." : touch ? "Hold ▲ and tap Kick: head kick." : "Press ; (semicolon): head kick.", ok: (b, n) => spad && mode === "zones" ? cnt(n, "flow") > cnt(b, "flow") && cnt(n, "legk") + cnt(n, "bodyk") + cnt(n, "headk") > cnt(b, "legk") + cnt(b, "bodyk") + cnt(b, "headk") : cnt(n, "headk") > cnt(b, "headk") },
       { id: "block", t: () => mode === "zones" ? "He jabs now. HOLD the left zone to block (watch his badge)." : touch ? "He jabs now. HOLD Defend to block." : "He jabs now. Hold S to block.", ok: (b, n) => (F.tally[1].blocked || 0) - (b.blocked1 || 0) >= 2 },
       { id: "slip", t: () => mode === "zones" ? "His glove glows before the cross: TOUCH the left zone right then to slip." : touch ? "His glove glows before the cross: tap Defend to slip." : "His glove glows before the cross: press W to slip.", ok: (b, n) => cnt(n, "slips") > cnt(b, "slips") },
-      { id: "roll", t: () => mode === "zones" ? "Now a big looping hook: SWIPE DOWN on the left zone to roll under it." : touch ? "A big looping hook: switch to the Strike pad layout to roll (swipe down), or block it." : "A big looping hook: press R to roll under it.", ok: (b, n) => cnt(n, "rolls") > cnt(b, "rolls") || (!touch ? false : mode !== "zones" && (F.tally[1].blocked || 0) > (b.blocked1 || 0)) },
+      { id: "roll", t: () => mode === "zones" ? "Now a big looping hook: DOUBLE-TAP the left zone to roll under it." : touch ? "A big looping hook: switch to the Strike pad layout to roll (swipe down), or block it." : "A big looping hook: press R to roll under it.", ok: (b, n) => cnt(n, "rolls") > cnt(b, "rolls") || (!touch ? false : mode !== "zones" && (F.tally[1].blocked || 0) > (b.blocked1 || 0)) },
       { id: "check", t: () => mode === "zones" ? "Leg kick coming (▼ badge): HOLD the left zone right as it lands for a timed check." : touch ? "Leg kick coming: hold Defend right as it lands to check it." : "Leg kick coming: hold S right as it lands to check it.", ok: (b, n) => cnt(n, "checks") > cnt(b, "checks") },
       { id: "sprawl", t: () => "He dips before he shoots: hit GRAPPLE in the dip to sprawl." + (mode === "zones" ? "" : touch ? "" : " (G)"), ok: (b, n) => cnt(n, "sprawls") + cnt(n, "scrambles") > cnt(b, "sprawls") + cnt(b, "scrambles") }
     ];
@@ -4793,7 +4830,7 @@ void main(){
       const t = 300 - F.clockF(), key = F.rd + "|" + Math.ceil(t);
       if (key !== hudCache) { hudCache = key; $(".ma-rd").textContent = practice ? "PRACTICE" : `R${F.rd}/${F.nr}`; $(".ma-time").textContent = practice ? "GYM" : mmss(Math.ceil(t)); }
       if (mode === "zones") zoneHud();
-      padHud();
+      padHud(); F.latUp = V.latUp || 1;   // which way "up" on the screen is, for a side step
       gymHud();
       const me = F.f[0], op = F.f[1], rdy = me.sup >= 100 && ctxName() === "stand";
       root.querySelectorAll(".ma-supc").forEach(c => { c.classList.toggle("rdy", rdy); c.classList.toggle("dis", !rdy); c.setAttribute("aria-disabled", String(!rdy)); });
@@ -5132,7 +5169,7 @@ void main(){
       V.pt = (x1, hh) => P(L.px + x1 * L.ux, hh, L.pz + x1 * L.uz);
       const f0 = P(me.wx, 0, me.wz), f2 = P(me.wx, 200, me.wz); V.cam.s = clamp((f0.y - f2.y) / 200, .25, 4);
       const a0 = P(L.px, 100, L.pz), a1 = P(L.px + L.ux * 100, 100, L.pz + L.uz * 100); V.flip = a1.x < a0.x;
-      const [lx, lz] = leftOf({ L }, F.f[0]), l1 = P(F.f[0].wx + lx * 60, 100, F.f[0].wz + lz * 60), l0 = P(F.f[0].wx, 100, F.f[0].wz); V.latScr = l1.x >= l0.x ? 1 : -1;
+      const [lx, lz] = leftOf({ L }, F.f[0]), l1 = P(F.f[0].wx + lx * 60, 100, F.f[0].wz + lz * 60), l0 = P(F.f[0].wx, 100, F.f[0].wz); V.latScr = l1.x >= l0.x ? 1 : -1; V.latUp = l1.y <= l0.y ? 1 : -1;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
       if (rp) {
         const G = { f: fs, fx: fr.fx, phase: "fight", m: null, down: null, g: null, c: null, cmbShow: [null, null], L };
@@ -5239,7 +5276,7 @@ void main(){
     };
   }
 
-  window.MMAArcade = { start, version: "3.4", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
+  window.MMAArcade = { start, version: "3.5", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
 })();
 </script>
 <script>
