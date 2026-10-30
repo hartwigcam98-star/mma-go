@@ -2399,9 +2399,11 @@ void main(){
     if (f.autoHold > 0 || f.act || f.stun > 0) { f.move = 0; return; }
     const d = Math.abs(o.x - f.x), toward = o.x >= f.x ? 1 : -1, room = backRoom(f);
     const want = o.rocked > 0 && f.stam > 15 ? f.k.reachP * .85 : outside(f, o) + (f.stam < 25 ? 18 : 0) + (f.blockHeld ? 8 : 0);   // he's hurt: walk him down
-    if (d > want + 26) f.move = toward;
-    else if (d < want - 12 && room > 80 && !inExchange(F, f, o)) { f.move = -toward; if (d < want - 36) bounceOut(F, f, o); }
-    else f.move = 0;
+    // hysteresis: once he's adjusting he finishes the adjustment, then stands still (no stepping back and forth)
+    const ex = inExchange(F, f, o);
+    if (f.spD > 0 ? d > want + 6 : d > want + 26) { f.move = toward; f.spD = 1; }
+    else if ((f.spD < 0 ? d < want - 2 : d < want - 12) && room > 80 && !ex) { f.move = -toward; f.spD = -1; if (d < want - 36) bounceOut(F, f, o); }
+    else { f.move = 0; f.spD = 0; }
     if (room < 80 && room > 26 && f.pivCd <= 0 && f.stam > 18 && (o.move === o.dir || d < want + 10)) { f.pivCd = 2.6; startAct(F, f, o, "pivotU"); }
   }
   // zone gestures -> commands, shared by the touch UI and the headless tests.
@@ -3072,7 +3074,7 @@ void main(){
     if (F.phase !== "break") return;
     F.rd++; F.clock = 0; F.phase = "intro"; F.phaseT = 1.4; F.cmbShow = [null, null];
     for (const f of F.f) {
-      f.st = newStats(); f.mode = "stand"; f.act = null; f.buf = f.buf2 = f.q = null; f.stun = 0; f.kdRd = 0; f.vx = 0; f.vw = 0; f.lvE = 0; f.gs = null; f.plant = 0; f.lvStep = 0; f.depth = 0;
+      f.st = newStats(); f.mode = "stand"; f.act = null; f.buf = f.buf2 = f.q = null; f.stun = 0; f.kdRd = 0; f.vx = 0; f.vw = 0; f.lvE = 0; f.gs = null; f.plant = 0; f.lvStep = 0; f.lvS = 0; f.lastStep = null; f.sinceStep = 1; f.spD = 0; f.depth = 0;
       f.counterT = f.whiff = f.slipI = f.rollI = f.rollHook = f.pullT = f.sprawlT = f.dashT = f.angleT = f.switchT = f.baited = f.catchT = f.feintT = f.pivI = 0; f.cmb = null; f.snap = null;
       f.rocked = f.rockHits = f.daze = f.rockCd = f.perfectT = 0; f.guard = 100; f.sprawlGood = false; f.charge = false; f.tell = null;
       f.dmg.head *= .66; f.dmg.body *= .85; f.dmg.leg *= .85;
@@ -3178,24 +3180,29 @@ void main(){
       f.lvStep = 0;
       if (f.gs && (f.stun > 0 || f.mode !== "stand" || (a && ["dash", "td", "pivot", "fknee", "sprawl", "tie", "flash"].includes(a.type)))) { f.gs = null; f.plant = .1; }
       if (!f.gs) {
-        f.plant = Math.max(0, (f.plant || 0) - dt);
+        f.plant = Math.max(0, (f.plant || 0) - dt); f.sinceStep = (f.sinceStep || 0) + dt;
         const sh = F.f[1 - f.side].act;   // he shoots: backing off it is never held up by the plant
         if (sh && (sh.type === "td" || sh.type === "flash") && !sh.done && f.move === -f.dir) f.plant = 0;
-        if (canMove && f.plant <= 0 && f.mode === "stand") {
-          const adv = f.move && !(f.move === -f.dir && pinned(f)) ? f.move : 0, lat = Math.abs(f.lat || 0) >= .15 && !(f.latB > 0) ? f.lat : 0;
+        const adv = f.move && !(f.move === -f.dir && pinned(f)) ? f.move : 0, lat = Math.abs(f.lat || 0) >= .15 && !(f.latB > 0) ? f.lat : 0, L = f.lastStep;
+        // keep going the same way: the next step flows straight on (no plant); turning round waits a beat (no twitching)
+        const same = L && f.sinceStep < .1 && (adv || lat) && Math.sign(adv) === Math.sign(L.adv) && Math.sign(lat) === Math.sign(L.lat);
+        const turn = L && ((adv && L.adv && adv !== L.adv) || (lat && L.lat && Math.sign(lat) !== Math.sign(L.lat))) && f.sinceStep < .2;
+        if (canMove && (f.plant <= 0 || same) && !turn && f.mode === "stand") {
           if (adv || lat) {
             const back = adv === -f.dir, sp = f.k.speed * (f.blocking ? .55 : 1) * (1 - f.dmg.leg / 190) * (.7 + .3 * stamF(f)) * (back ? .92 : 1) * (f.rocked > 0 ? .6 : 1);
             const len = STRIDE * f.k.size * (adv ? 1 : .8) * (back ? .9 : 1);
-            f.gs = { adv, lat: lat ? Math.sign(lat) * clamp(Math.abs(lat) / .6, .5, 1) * (adv ? .7 : 1) : 0, len, t: 0, dur: clamp(len / (sp * 1.2), .14, .42), back };
+            f.gs = { adv, lat: lat ? Math.sign(lat) * clamp(Math.abs(lat) / .6, .5, 1) * (adv ? .7 : 1) : 0, len, t: 0, dur: clamp(len / (sp * 1.2), .14, .42), back, m: same ? .35 : 1 };
           }
         }
       }
       if (f.gs) {
-        const g = f.gs; g.t += dt; const u = g.t / g.dur, k = gaitProf(u) / g.dur;
+        const g = f.gs; g.t += dt; const u = g.t / g.dur, k = ((1 - g.m) * (u < 1 ? 1 : 0) + g.m * gaitProf(u)) / g.dur;
         v = g.adv * g.len * k; f.lvStep = g.lat * g.len * k; g.u = Math.min(1, u);
-        if (u >= 1) { f.gs = null; f.plant = f.blocking ? .12 : PLANT; f.lastStep = { adv: g.adv, lat: g.lat, len: g.len, back: g.back }; }
+        if (u >= 1) { f.gs = null; f.plant = f.blocking ? .12 : PLANT; f.sinceStep = 0; f.lastStep = { adv: g.adv, lat: g.lat, len: g.len, back: g.back }; }
       }
-      f.vw = v;
+      // the seams between steps (rest -> step -> rhythm -> stop) are smoothed over ~50 ms: weight, not a judder
+      f.vw = (f.vw || 0) + (v - (f.vw || 0)) * (1 - Math.exp(-dt * 20)); v = Math.abs(f.vw) < 1 && !v ? 0 : f.vw;
+      f.lvS = (f.lvS || 0) + ((f.lvStep || 0) - (f.lvS || 0)) * (1 - Math.exp(-dt * 20)); f.lvStep = Math.abs(f.lvS) < 1 && !f.lvStep ? 0 : f.lvS;
       if (a && a.type === "dash") v = a.dir * f.dir * (a.dir > 0 ? 560 : 500) * (1 - f.dmg.leg / 260) * gaitProf(a.t / a.dur);
       if (a && a.type === "td" && !a.done && a.t >= (a.tele || 0)) v = f.dir * 230;
       if (a && a.type === "fknee" && !a.done && a.t >= a.tele) v = f.dir * 170;
@@ -4928,12 +4935,12 @@ void main(){
           const fl = (cc.lead === "R") !== (f.stance === -1), gg = (cc.travel || 1) * f.k.size * 90 / (cc.leg || 90);
           const ut = (1 - Math.cos(Math.PI * clamp(gs.u || 0, 0, 1))) / 2, rev = kk === "stepF" ? gs.back : (T.dLs || 1) < 0;
           const len = kk === "stepF" ? gs.len * Math.max(Math.abs(gs.adv), .01) : gs.len * Math.abs(gs.lat);
-          T.gk = kk; T.gt = mcProg(cc, rev ? 1 - ut : ut); T.gsx = clamp(len / gg, .15, 1.2); T.gw = 1; T.gp = 0; T.lk = kk;
-          return { k: kk, t: T.gt, w: 1, sx: T.gsx };
+          T.gk = kk; T.gt = mcProg(cc, rev ? 1 - ut : ut); T.gsx = clamp(len / gg, .15, 1.2); T.gw = Math.min(1, (T.gw || 0) + gdt * 14); T.gp = 0; T.lk = kk;
+          return { k: kk, t: T.gt, w: T.gw, sx: T.gsx };
         }
         // planted: hold the landing pose (the next step usually follows), then settle into the stance
-        T.gp = (T.gw >= 1 ? T.gp || 0 : 0) + gdt; if (T.gp > .3) T.gw = Math.max(0, (T.gw || 0) - gdt * 5); else T.gp = T.gp;
-        if (T.gw >= 1 && T.gp <= .3) return T.gk ? { k: T.gk, t: T.gt, w: 1, sx: T.gsx } : null;
+        T.gp = (T.gp || 0) + gdt; if (T.gp > .3) T.gw = Math.max(0, (T.gw || 0) - gdt * 5);
+        if (T.gp <= .3) return T.gk ? { k: T.gk, t: T.gt, w: T.gw, sx: T.gsx } : null;
         return T.gw > .01 && T.gk ? { k: T.gk, t: T.gt, w: T.gw, sx: T.gsx } : null;
       }
       const u = (((k === "stepF" ? T.ph : T.pl) % 1) + 1) % 1, w = force ? 1 : clamp((T.vs - 8) / (f.k.speed * .2), 0, 1);
@@ -5154,7 +5161,7 @@ void main(){
     };
   }
 
-  window.MMAArcade = { start, version: "3.3", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
+  window.MMAArcade = { start, version: "3.3.1", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
 })();
 </script>
 <script>
