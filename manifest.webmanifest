@@ -1,0 +1,16 @@
+{
+  "name": "Skill Spin MMA",
+  "short_name": "MMA Spin",
+  "description": "Spin real UFC fighters' skills into one fighter, then live his career and fight it yourself.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1420",
+  "theme_color": "#0e1420",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
