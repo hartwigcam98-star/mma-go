@@ -1061,6 +1061,36 @@ html.sheet-open{overflow:hidden}
 .ma-bar.ma-hitp{animation:maHitP .32s ease-out}
 @keyframes maHitP{0%{box-shadow:0 0 0 2px rgba(255,255,255,.95);filter:brightness(2)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0);filter:none}}
 @media (prefers-reduced-motion:reduce){.ma-pop{animation:maPopRm .85s linear forwards}.ma-bar.ma-hitp{animation:none}}
+/* ---------- classic career: mode switch, style picker, training camp */
+.cmodes{display:flex;gap:6px;margin:0 0 10px}
+.cmodes .chip{flex:1;min-height:44px;font-size:15px}
+.archgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.archopt{display:grid;gap:3px;text-align:left;padding:9px 10px;border-radius:12px;border:1px solid var(--line);background:var(--panel2,#1d2738);color:var(--text);cursor:pointer;min-height:56px;font:inherit}
+.archopt b{font:800 15px/1.1 var(--display,inherit);letter-spacing:.03em;text-transform:uppercase}
+.archopt span{font:600 12px/1.2 var(--data,inherit);color:var(--mute)}
+.archopt.on{border-color:var(--bulb,#ffb547);box-shadow:inset 0 0 0 1px var(--bulb,#ffb547);background:#2a2412}
+.archopt.on span{color:#e6d3a8}
+.archinfo{margin-top:8px;font-size:14px;line-height:1.4}
+.camppanel .cp-body{display:grid;gap:8px;padding:12px 14px 14px}
+.campgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}
+.campopt{display:grid;gap:3px;text-align:left;padding:9px 10px;border-radius:12px;border:1px solid var(--line);background:var(--panel2,#1d2738);color:var(--text);cursor:pointer;font:inherit;min-height:44px}
+.campopt b{font:800 14px/1.1 var(--display,inherit);letter-spacing:.03em;text-transform:uppercase}
+.campopt span{font:600 12px/1.25 var(--data,inherit);color:var(--mute)}
+.campopt.on{border-color:var(--alum,#2fe6d8);box-shadow:inset 0 0 0 1px var(--alum,#2fe6d8)}
+.campopt:disabled{opacity:.45;cursor:not-allowed}
+.trlist{display:grid;gap:4px}
+.trrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(40px,1fr) auto auto auto auto;gap:6px;align-items:center;font:600 13px/1.2 var(--data,inherit)}
+.trrow .k{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.trrow .r{font-weight:800;min-width:4.6em;text-align:right;color:var(--text)}
+.trrow .r small{color:var(--mute);font-weight:600}
+.trrow .r .neg{color:var(--loss,#ef5a5a)}
+.trrow .tcost{color:var(--mute);min-width:3.4em;text-align:right}
+.trrow .tb{min-width:44px;min-height:36px;padding:4px 8px}
+.trrow.max .tcost{color:var(--alum,#2fe6d8);grid-column:span 3;text-align:left}
+.tbar{height:6px;border-radius:3px;background:#0a0f18;overflow:hidden}
+.tbar i{display:block;height:100%;background:linear-gradient(90deg,#3d7fe0,var(--alum,#2fe6d8))}
+.tplink{color:var(--alum,#2fe6d8);font-weight:800;text-decoration:none}
+@media (max-width:420px){.trrow{grid-template-columns:minmax(0,1fr) auto auto auto auto}.trrow .tbar{display:none}}
 /* ---------- v3.2: the strike pad (a PUNCH and a KICK button, swipe a direction to pick the strike), roll / flow cues */
 .ma-spad{display:none}
 .ma-spon .ma-spad{position:absolute;inset:0;display:grid;grid-template-rows:repeat(2,minmax(0,1fr));gap:6px;padding:6px;background:linear-gradient(180deg,#1b2537,#121a28);z-index:2}
@@ -1119,6 +1149,7 @@ html.sheet-open{overflow:hidden}
 .mma-arc.ma-landfull.ma-gymon .ma-zchips{visibility:hidden}
 .mma-arc.ma-landfull.ma-kocard .ma-zonewrap{visibility:hidden}
 .mma-arc.ma-landfull .ma-edge,.mma-arc.ma-landfull .ma-gym,.mma-arc.ma-landfull .ma-ko{z-index:5}
+.mma-arc:not(.ma-land) .ma-coach{min-height:46px;box-sizing:border-box}
 </style>
 <style>
 /* arcade mode (arcade.css above): a full-viewport overlay with safe-area insets; the page underneath is locked and inert */
@@ -4310,7 +4341,9 @@ void main(){
       const hud = $(".ma-hud").offsetHeight, above = clamp(root.getBoundingClientRect().top + (window.scrollY || 0), 0, 120);
       const ctlH = mode === "zones" ? $(".ma-zonewrap").offsetHeight : $(".ma-pad").offsetHeight;
       const full = land && mode === "zones";
-      const avail = full ? window.innerHeight : land ? window.innerHeight - hud - 14 : (window.innerHeight || 800) - above - hud - ctlH - 30;
+      // the visible height (iOS toolbars come and go), measured fresh every time the controls or the tip change size
+      const vh = Math.round(window.visualViewport ? window.visualViewport.height : window.innerHeight) || window.innerHeight || 800;
+      const avail = full ? vh : land ? vh - hud - 14 : vh - above - hud - ctlH - 30;
       const h = Math.round(clamp(land ? avail : Math.min(w * (w < 600 ? .92 : .56), avail), 180, full ? 600 : 470));
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       if (V.w === w && V.h === h && V.dpr === dpr) return;
@@ -4319,10 +4352,21 @@ void main(){
       stage.style.height = h + "px";
       if (r3d) r3d.resize(w, h, Math.min(dpr, +opts.maxDpr || 2));
       $(".ma-zonewrap").style.top = "";
+      fitView();
+    }
+    // portrait: if the page has drifted (a toolbar showed up, the page scrolled), bring the controls' bottom edge back on screen
+    function fitView() {
+      if (land || done) return;
+      requestAnimationFrame(() => {
+        const r = root.getBoundingClientRect(), vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        if (r.bottom > vh + 1 && r.height <= vh + 2) { try { window.scrollBy(0, Math.ceil(r.bottom - vh)); } catch (e) { } }
+      });
     }
     size();
-    const ro = window.ResizeObserver ? new ResizeObserver(() => size()) : null; if (ro) ro.observe(stage);
+    // re-fit whenever anything around the cage changes height (the tip line, the chips, the controls), not just the window
+    const ro = window.ResizeObserver ? new ResizeObserver(() => size()) : null; if (ro) { ro.observe(stage); ro.observe($(".ma-zonewrap")); ro.observe($(".ma-hud")); ro.observe($(".ma-pad")); }
     window.addEventListener("resize", size);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", () => { size(); fitView(); });
 
     // ---- input
     const ctxName = () => F.m ? "meter" : F.down ? (F.down.victim === F.f[0] ? "downV" : "downA") : F.g ? (F.g.top === F.f[0] ? "top" : "bot") : F.c ? "clinch" : "stand";
@@ -5238,8 +5282,9 @@ const ROSTER = new Set(D.league.map(r => r[0]));
 PL.forEach(p => p.cur = ROSTER.has(p.n) || lastYr(p.span) >= 2023);
 const POOLS = [["all", "All-time"], ["cur", "Current"], ["leg", "Legends"]];
 const POOL_RULE = "Current: on today's UFC roster or a last fight in 2023 or later. Legends: everyone else, Pride and Bellator legends included.";
-const poolKey = k => k === "cur" || k === "leg" ? k : "all";
-const poolName = k => POOLS.find(x => x[0] === poolKey(k))[1];
+const poolKey = k => k === "cur" || k === "leg" || k === "cls" ? k : "all";
+const POOLS_ALL = [...POOLS, ["cls", "Classic"]];
+const poolName = k => POOLS_ALL.find(x => x[0] === poolKey(k))[1];
 const poolList = k => (k = poolKey(k)) === "all" ? PL : PL.filter(p => k === "cur" ? p.cur : !p.cur);
 const tier = r => r >= 90 ? 5 : r >= 80 ? 4 : r >= 65 ? 3 : r >= 50 ? 2 : 1;
 const short = n => { const p = n.split(" "); return p.length > 1 ? p[0][0] + ". " + p.slice(1).join(" ") : n; };
@@ -5555,6 +5600,7 @@ function npcFight(rng, a, b, nb) {
 // ---------------------------------------------------------------- aging
 const GRP = { volume: "strike", accuracy: "strike", kicks: "strike", power: "power", sdef: "ath", tdd: "ath", scramble: "ath", chin: "chin", wrestle: "grap", control: "grap", subs: "grap", cardio: "gas", iq: "iq", finish: "fin", frame: "frame" };
 const AGE = { strike: [1.6, 28, 32, 1.2, 0.15], power: [1.0, 27, 33, 0.8, 0.1], ath: [1.0, 27, 31, 1.4, 0.2], chin: [0, 25, 31, 1.5, 0.25], grap: [1.5, 29, 33, 1.0, 0.12], gas: [0.8, 27, 31, 1.3, 0.2], iq: [2.0, 31, 35, 0.6, 0.1], fin: [1.0, 28, 33, 1.0, 0.12], frame: [0, 25, 99, 0, 0] };
+function ageDecline(k, age, pace) { const [, , ds, lin, quad] = AGE[GRP[k]]; if (age <= ds) return 0; const y = age - ds; return -(lin * y + quad * y * y); }
 function ageDelta(k, age, pace) {
   const [g, pk, ds, lin, quad] = AGE[GRP[k]];
   let d = 0;
@@ -5713,6 +5759,7 @@ function newCareer(build, seed) {
   const eb = build.era ? ERA_B : 0; C.eb = eb; CAGE = CAGE0 - eb + (build.nb ? NB_CAGE : 0); ZB = ZB0 + eb;
   C.lg = newLeague(rng, C.nb);
   if (eb) { C.lg.eb = eb; C.lg.f.forEach(f => f.R = f.R.map((r, i) => SK[i] === "frame" ? r : r + eb)); }
+  if (build.cls) C.cls = { arch: build.cls, tp: 0, earned: 0, tr: Array(NSK).fill(0), camp: "std", camps: 0, spent: 0, reg: 0, injured: false };
   if (build.alumni && build.alumni.length) addAlumni(C, build);
   if (build.rival) C.rival = makeRival(C, build);
   advanceLeague(C, 0);
@@ -5835,7 +5882,7 @@ let CAGE0 = 14, CAGE = 14, NB_CAGE = 2.5;  // nb: v2 cards draft ~0.8 OVR higher
 function ratingsAt(C, age) {
   return SK.map((k, i) => {
     if (k === "frame") return clamp(C.peak[i] + C.adj[i], 15, 99);
-    let r = C.peak[i] + C.adj[i] + focusGain(C, k) + ageDelta(k, age, C.pace) - CAGE;
+    let r = C.peak[i] + C.adj[i] + focusGain(C, k) + (C.cls ? C.cls.tr[i] + Math.min(0, ageDecline(k, age, C.pace)) : ageDelta(k, age, C.pace)) - CAGE;
     if (k === "chin") r -= C.dmg;
     return clamp(Math.round(r), 15, 99);
   });
@@ -5953,6 +6000,10 @@ function fightOpen(C, calls, entry) {
   const tac = calls != null, fi = C.fights.length;
   C.log.push(entry || (tac ? `t:${fi}:` : "f")); const li = C.log.length - 1;
   const rng = C.rng, OF = C.nextOffer; C.nextOffer = null;
+  if (C.cls) {
+    if (C.cls.camp === "hard") { C.dmg += .6; if (rng() < .2) { C.cls.injured = true; C.gap += 3; } }   // hard sparring wears the chin
+    if (C.cls.camp === "elite") { const c = campCost(C); C.cls.spent += c; C.cls.paid = c; }
+  }
   if (OF && OF.kind === "short") C.gap = Math.min(C.gap, 1);
   if (C.ob && OF && OF.kind !== "title") { const o0 = byId(C.lg, OF.id); C.fightBook = { div: C.div, id: OF.id, n: o0 ? o0.n : "" }; }
   C.m += C.gap; C.age = C.age0 + C.m / 12;
@@ -5962,7 +6013,8 @@ function fightOpen(C, calls, entry) {
   const R = ratingsAt(C, C.age), me = { n: C.name, R };
   let opp, title = false, vacant = false, nr = 3, ufc = C.signed, oppF = null, rankBefore = null, oppRank = null, offerKind = null, preRank = null;
   if (!C.signed) {
-    const t = clamp(41 + gauss(rng) * 4, 32, 54);
+    const reg = C.cls && C.cls.reg < CLS_REG;   // classic: the regional circuit first, opponents a little better each time
+    const t = reg ? clamp(33 + 2.2 * C.cls.reg + gauss(rng) * 3, 26, 48) : clamp(41 + gauss(rng) * 4, 32, 54);
     opp = { n: pick(rng, FIRST) + " " + pick(rng, LAST), R: SK.map(k => k === "frame" ? Math.round(50 + gauss(rng) * 12) : clamp(Math.round(t + gauss(rng) * 7), 25, 85)), rec: [8 + Math.floor(rng() * 5), Math.floor(rng() * 3), 0] };
   } else {
     const uf = userF(C); uf.R = R; uf.age = C.age; uf.div = C.div;
@@ -5994,7 +6046,7 @@ function fightClose(C, X) {
   // an external (arcade) result logs its play-by-play without names: fill them in now that the matchup is known. Never set by the sim.
   if (r.names) { r.names(X.me.n, opp.n); delete r.names; }
   const res = r.winner == null ? "D" : r.winner === 0 ? "W" : "L";
-  const f = { m: C.m, yr: START + Math.floor(C.m / 12), age: Math.floor(C.age), div: C.div, ufc, event: ufc ? eventName(C, title, nr === 5) : "Dana White's Contender Series",
+  const f = { m: C.m, yr: START + Math.floor(C.m / 12), age: Math.floor(C.age), div: C.div, ufc, event: ufc ? eventName(C, title, nr === 5) : C.cls && C.cls.reg < CLS_REG ? REGP[(C.cls.reg + C.seed) % REGP.length] : "Dana White's Contender Series",
     opp: { n: opp.n, rec: opp.rec, rank: oppRank, ovr: ovrOf(opp.R), R: opp.R }, title, vacant, res, method: r.method, detail: r.detail, rd: r.rd, t: r.t, nr, rounds: r.rounds, cards: r.cards, excite: r.excite,
     rankBefore, ovr: ovrOf(R), R, bonus: [], events: [], offer: ufc ? offerKind || null : null };
   if (X.tac) f.tac = r.calls || "";
@@ -6005,11 +6057,18 @@ function fightClose(C, X) {
   if (oppF && oppF.alumni) { f.alumni = true; f.opp.look = oppF.look; f.events.unshift(`<b>${offerKind === "alumni" ? "Alumni showdown" : "Past fighter"}:</b> ${esc(oppF.n)}, one of your own past fighters`); }
   if (res === "W") C.pro.w++; else if (res === "L") C.pro.l++; else C.pro.d++;
   if (C.fs && C.fs.got < FOCUS_MAX) { C.fs.got++; f.events.push(`Focus training: <b>${SKN[C.fs.k]} +1</b> (${C.fs.got}/${FOCUS_MAX})`); }
+  if (!ufc && C.cls && C.cls.reg < CLS_REG) {
+    // classic: a regional card. Wins and losses go on the pro record; after CLS_REG of them, the Contender Series calls
+    C.cls.reg++; f.regional = true;
+    f.events.push(res === "W" ? `Regional win (${C.pro.w}-${C.pro.l})` : `Regional ${res === "L" ? "loss" : "draw"} (${C.pro.w}-${C.pro.l}${C.pro.d ? "-" + C.pro.d : ""})`);
+    if (C.cls.reg === CLS_REG) f.events.push(C.pro.w >= C.pro.l ? "The Contender Series calls: one fight for a UFC contract" : "A tough start, but the Contender Series gives him a look");
+    C.fights.push(f); C.gap = 3 + Math.floor(rng() * 3); clsAfter(C, f); return f;
+  }
   if (!ufc) {
     // rival careers: join the league table the moment the contract is signed, so views can't change the id order
     if (res === "W") { C.signed = true; if (C.rival) userF(C); f.events.push(`Earned a UFC contract with a ${r.method === "DEC" ? "decision" : r.method === "KO" ? "knockout" : "submission"} on the Contender Series`); }
-    else { C.dwcsTries++; f.events.push(C.dwcsTries >= 2 ? "Lost on the Contender Series again. The UFC never called." : "Lost on the Contender Series. Back to the regional scene for another shot."); if (C.dwcsTries >= 2) { C.retired = true; C.retireWhy = "Never made it to the UFC"; } }
-    C.fights.push(f); C.gap = 5 + Math.floor(rng() * 4); return f;
+    else { C.dwcsTries++; const out = C.dwcsTries >= (C.cls ? 3 : 2); f.events.push(out ? "Lost on the Contender Series again. The UFC never called." : "Lost on the Contender Series. Back to the regional scene for another shot."); if (out) { C.retired = true; C.retireWhy = "Never made it to the UFC"; } }
+    C.fights.push(f); C.gap = 5 + Math.floor(rng() * 4); if (C.cls) clsAfter(C, f); return f;
   }
   // ---------- apply the UFC result
   const uf = userF(C);
@@ -6059,7 +6118,7 @@ function fightClose(C, X) {
   // damage and money
   const absorbed = r.rounds.reduce((a, rd) => a + rd.s[1].sl, 0), kdA = r.rounds.reduce((a, rd) => a + rd.s[1].kd, 0);
   C.dmg += kdA * 0.5 + (res === "L" && r.method === "KO" ? 3 : 0) + (absorbed > 150 ? 0.8 : 0);
-  const pay = purse(rankBefore, title, res === "W") * ofx.pay + f.bonus.length * 50e3; C.earnings += pay; f.pay = pay;
+  const pay = purse(rankBefore, title, res === "W") * ofx.pay + f.bonus.length * 50e3; C.earnings += pay; f.pay = pay; C.lastPay = pay;
   // rankings
   const rk = rankOfF(L, uf); f.rankAfter = rk;
   if (rk != null) C.peakRank = C.peakRank == null ? rk : Math.min(C.peakRank, rk);
@@ -6082,6 +6141,7 @@ function fightClose(C, X) {
   else if (C.streak <= -3 && !rk && !C.belts[C.div] && C.rec.l >= C.rec.w) { C.retired = true; C.retireWhy = `Released by the UFC after ${plural(-C.streak, "straight defeat")} at ${Math.floor(age)}`; }
   else if (C.dmg >= 18 && rng() < 0.3) { C.retired = true; C.retireWhy = `Doctors advised him to stop at ${Math.floor(age)}`; }
   else if (nUFC % 4 === 0 || (title) || C.streak === -2 || (age >= 33 && nUFC % 2 === 0)) C.pending = offers(C, title, res);
+  if (C.cls) clsAfter(C, f);
   return f;
 }
 function careerTotals(C) {
@@ -6257,6 +6317,92 @@ function autoDraft(seed, respinBelow, pool) {
   return SK.map(k => picks[k]);
 }
 
+// ---------------------------------------------------------------- classic career: pick an archetype, then build him up camp by camp
+// build.cls = archetype key. He starts raw (card OVR ~56) on the regional circuit; every fight earns training points (TP) by
+// how it went and the camp he chose; TP buy rating points (card scale) up to the archetype's ceilings, dearer as a skill
+// climbs. No automatic growth into a prime: what he becomes is what you train. Age still takes it away after 30 or so.
+// Log: "cm:<camp>" (the camp for the next fight), "tp:<skill>:<n>" (n points bought). Draft careers never see any of it.
+const CLS_ARCH = {
+  boxer: { n: "Boxer", d: "Hands first: volume, accuracy and head movement. Kicks and grappling are a project.", up: { volume: 64, accuracy: 65, power: 61, sdef: 62, chin: 57, cardio: 56, iq: 54 }, dn: { kicks: 42, wrestle: 45, subs: 42, control: 44 } },
+  muaythai: { n: "Muay Thai", d: "Kicks, knees and clinch from the Thai tradition. Heavy shins, but off his back he's lost.", up: { kicks: 67, power: 61, volume: 58, chin: 60, cardio: 58, control: 55 }, dn: { wrestle: 44, subs: 42, scramble: 45 } },
+  karate: { n: "Karate", d: "Point-fighting distance: in and out, long kicks, hard to hit. Light hands up close.", up: { kicks: 64, sdef: 66, accuracy: 62, iq: 58, volume: 55 }, dn: { wrestle: 44, control: 42, subs: 44, power: 49 } },
+  wrestler: { n: "Wrestler", d: "Collegiate takedowns and top control, a gas tank to match. Stand-up comes later.", up: { wrestle: 68, control: 65, tdd: 66, cardio: 62, scramble: 56, chin: 56 }, dn: { volume: 46, kicks: 40, accuracy: 46 } },
+  bjj: { n: "BJJ Black Belt", d: "Submissions from anywhere and slick scrambles. Needs a way to get it to the mat.", up: { subs: 71, scramble: 64, control: 59, iq: 57, wrestle: 54 }, dn: { power: 44, kicks: 42, volume: 46, sdef: 46 } },
+  brawler: { n: "Brawler", d: "Heavy hands, a granite chin and bad intentions. Defense is optional, for now.", up: { power: 68, chin: 66, finish: 65, volume: 58 }, dn: { sdef: 44, wrestle: 46, subs: 40, iq: 46 } },
+  counter: { n: "Counter Striker", d: "Reads, slips and counters. Patient, accurate, smart; not much volume or wrestling.", up: { sdef: 66, accuracy: 65, iq: 63, power: 58, tdd: 57, chin: 56 }, dn: { wrestle: 46, subs: 44 } },
+  allround: { n: "All-Rounder", d: "A bit of everything, nothing elite yet. The most room to shape him, a lower ceiling at the top.", up: {}, dn: {} }
+};
+const CLS_KEYS = Object.keys(CLS_ARCH), CLS_START = 58, CLS_REG = 4;
+const REGP = ["Fury FC", "LFA", "Cage Warriors", "CFFC", "Shamrock FC", "XMMA", "Lights Out Championship"];
+const CAMPS = {
+  std: { n: "Standard camp", d: "Normal TP, no extra risk", mult: 1 },
+  hard: { n: "Hard camp", d: "+40% TP, but hard sparring wears his chin a little, and 1 in 5 times he gets hurt in camp: the fight slips 3 months and he banks only 40%", mult: 1.4 },
+  light: { n: "Light camp", d: "Half the TP; heals some chin damage", mult: .55 },
+  elite: { n: "Elite gym", d: "+70% TP and no extra risk, but it costs money", mult: 1.7 }
+};
+// the starting card: archetype ratings around 50, then all but frame shifted so every archetype starts at the same OVR
+function clsStart(key) {
+  const A = CLS_ARCH[key] || CLS_ARCH.allround;
+  let R = SK.map(k => k === "frame" ? 55 : A.up[k] || A.dn[k] || 52);
+  if (key === "allround") R = SK.map(k => k === "frame" ? 55 : 55);
+  // grapplers win more than their OVR says in this engine, so the pure strikers start a touch higher to even the field
+  const tgt = CLS_START + ({ boxer: 1.5, karate: 1.5, counter: 2, muaythai: 1 }[key] || 0);
+  for (let it = 0; it < 6; it++) { const d = tgt - ovrOf(R); if (Math.abs(d) < .5) break; R = R.map((r, i) => SK[i] === "frame" ? r : clamp(Math.round(r + d), 30, 80)); }
+  return R;
+}
+// how far each skill can go: his styles to 97, the rest to 92, his weak spots to 84 (an all-rounder: 92 everywhere)
+function clsCap(key, k) { const A = CLS_ARCH[key] || CLS_ARCH.allround; if (key === "allround") return 92; return A.up[k] ? 97 : A.dn[k] ? 84 : 92; }
+const clsCard = (C, i) => C.peak[i] + C.adj[i] + C.cls.tr[i];   // the card-scale rating training builds on
+function tpCost(r, k) { const c = r < 60 ? 1 : r < 70 ? 2 : r < 78 ? 3 : r < 85 ? 4 : r < 90 ? 6 : r < 95 ? 9 : 12; return k === "chin" ? Math.ceil(c * 1.5) : c; }
+function campCost(C) { return !C.signed ? 5e3 : Math.max(20e3, Math.round((C.lastPay || 40e3) * .12 / 1e3) * 1e3); }
+const campCash = C => C.earnings - (C.cls ? C.cls.spent : 0);
+function setCamp(C, k) {
+  if (!C.cls || !CAMPS[k] || C.retired) return false;
+  if (k === "elite" && campCash(C) < campCost(C)) return false;
+  C.cls.camp = k; C.log.push("cm:" + k); return true;
+}
+function trainSkill(C, k, n) {
+  const i = SK.indexOf(k); if (!C.cls || i < 0 || k === "frame" || C.retired) return 0;
+  let got = 0;
+  for (let j = 0; j < (n || 1); j++) {
+    const r = clsCard(C, i), c = tpCost(r, k);
+    if (r >= clsCap(C.cls.arch, k) || C.cls.tp < c) break;
+    C.cls.tp -= c; C.cls.tr[i]++; got++;
+  }
+  if (got) C.log.push(`tp:${k}:${got}`);
+  return got;
+}
+// spend it the way a sensible coach would: best OVR gain per TP, a lean toward his styles, never past the ceilings
+function autoTrain(C) {
+  if (!C.cls) return 0; let n = 0;
+  const A = CLS_ARCH[C.cls.arch] || CLS_ARCH.allround, buys = {};
+  for (let guard = 0; guard < 400; guard++) {
+    let best = null, bv = 0;
+    SK.forEach((k, i) => {
+      if (k === "frame") return; const r = clsCard(C, i), c = tpCost(r, k);
+      if (r >= clsCap(C.cls.arch, k) || C.cls.tp < c) return;
+      const v = OW[k] * (A.up[k] ? 1.25 : 1) * (1 + Math.max(0, 62 - r) / 30) / c;
+      if (v > bv) { bv = v; best = k; }
+    });
+    if (!best) break;
+    const i = SK.indexOf(best); C.cls.tp -= tpCost(clsCard(C, i), best); C.cls.tr[i]++; buys[best] = (buys[best] || 0) + 1; n++;
+  }
+  for (const k of Object.keys(buys)) C.log.push(`tp:${k}:${buys[k]}`);   // replays as the same buys, in an order that can't differ
+  return n;
+}
+// after each fight: TP for how it went and the camp he chose
+function clsAfter(C, f) {
+  const K = C.cls, cp = CAMPS[K.camp] || CAMPS.std, W = f.res === "W";
+  let tp = (f.ufc ? 28 : 20) + (W ? 16 : f.res === "D" ? 8 : 5) + (W && f.method !== "DEC" ? 7 : 0) + 7 * f.bonus.length + (W && f.title ? 16 : 0);
+  const age = f.age, am = age < 30 ? 1 : age < 34 ? .8 : .6;
+  const mult = K.injured ? .4 : cp.mult;
+  tp = Math.round(tp * mult * am);
+  K.tp += tp; K.earned += tp; K.camps++;
+  if (K.camp === "light") C.dmg = Math.max(0, C.dmg - 1.5);
+  f.camp = K.camp; f.tp = tp;
+  f.events.push(`${cp.n}${K.injured ? " (hurt in camp)" : ""}: <b>+${tp} TP</b> to spend in the gym`);
+  K.camp = "std"; K.injured = false;
+}
 // ---------- fighter portraits: illustrated SVG busts, generated on the fly (no images, no network)
 // Your fighter is drawn in full color from a look you choose. Everyone else gets a poster-style duotone in his
 // division's color, so the game never guesses at a real fighter's appearance.
@@ -6343,7 +6489,7 @@ const pickR = a => a[Math.floor(Math.random() * a.length)];
 function randomName(withNick) { const f = pickR(RN_FIRST), l = pickR(RN_LAST); return withNick && Math.random() < 0.6 ? `${f} "${pickR(RN_NICK)}" ${l}` : `${f} ${l}`; }
 
 // ---------------------------------------------------------------- state + draft
-let S = { screen: "home", daily: false, name: store.get("name", ""), div: store.get("div", 4), look: store.get("look", null), pool: poolKey(store.get("pool", "all")) };
+let S = { screen: "home", daily: false, name: store.get("name", ""), div: store.get("div", 4), look: store.get("look", null), pool: poolKey(store.get("pool", "all")), cmode: store.get("cmode", "spin"), arch: store.get("arch", "boxer") };
 // daily seeds: the All-time pool keeps the original daily, the other pools get their own
 const dailyKey = pool => (poolKey(pool) === "all" ? "" : poolKey(pool) + "|") + today();
 function toast(t) { const el = $("#toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => el.hidden = true, 2200); }
@@ -6400,7 +6546,7 @@ function finish() {
 // Every auto pick goes through the same calls and log entries as a manual pick ("c:<id>", "o:title:<id>"; offers -> "Let the UFC decide",
 // which logs nothing), so saves replay exactly. Never auto-retires, moves weight or switches camps.
 const autoOn = () => store.get("autoDecide", true) !== false;
-const AUTO_TXT = { stay: "kept climbing", defend: "defended the belt", heal: "took time to heal", title: "accepted a title fight" };
+const AUTO_TXT = { train: "spent TP in camp", stay: "kept climbing", defend: "defended the belt", heal: "took time to heal", title: "accepted a title fight" };
 function autoChoose(C, cnt) {
   const P = C.pending, heal = P.opts.find(o => o.id === "heal"), id = heal && (C.dmg >= 6 || C.streak <= -2) ? "heal" : "stay";
   cnt[id === "stay" && P.champ ? "defend" : id] = (cnt[id === "stay" && P.champ ? "defend" : id] || 0) + 1;
@@ -6417,6 +6563,7 @@ function quickFight(n) {
       const P = titlePreview(C);
       if (P && (n === "title" || (n !== "titleA" && !auto))) { if (n === "title") { S.tprev = P; S.offerAfter = "next"; S.offerY = window.scrollY; } if (n === "title") break; }
       if (P && auto && n !== "title") { bookTitle(C, P.id); C.log.push(`o:title:${P.id}`); cnt.title = (cnt.title || 0) + 1; }
+      if (C.cls && auto && C.cls.tp > 0) { autoTrain(C); cnt.train = (cnt.train || 0) + 1; }
       const f = simFightStep(C);
       if ((n === "title" || n === "titleA") && f && f.title) break;
     }
@@ -6689,7 +6836,7 @@ function tacView() {
 const EXT_FIGHT = { decode: null, tpButtons: null };
 function replayCareer(sv) {
   const C = newCareer(sv.build, sv.seed);
-  for (const a of sv.log) { if (a === "f") simFightStep(C); else if (a.startsWith("t:")) simFightStep(C, a.slice(a.indexOf(":", 2) + 1)); else if (a.startsWith("a:") && EXT_FIGHT.decode) simFightStep(C, null, { entry: a, res: EXT_FIGHT.decode(a, C) }); else if (a.startsWith("o:")) { const [, kind, id] = a.split(":"); if (kind === "title") bookTitle(C, +id); else C.nextOffer = { kind, id: +id }; C.log.push(a); } else if (a.startsWith("c:")) choose(C, a.slice(2)); else if (a === "r") retireNow(C); else if (a.startsWith("L:")) legendEnter(C, +a.slice(2)); else if (a.startsWith("l:")) { const q = a.split(":"), ent = q.length > 3 ? q.slice(3).join(":") : null, res = ent && EXT_FIGHT.decode ? EXT_FIGHT.decode(ent, C) : null; legendFight(C, q[1], +q[2], res ? { entry: ent, res } : null); } else if (a === "lq") legendQuit(C); else if (a === "rk") { C.rk = true; C.log.push("rk"); } else if (a === "ob") { C.ob = true; C.log.push("ob"); } else if (a.startsWith("fs:")) setFocus(C, a.slice(3)); }
+  for (const a of sv.log) { if (a === "f") simFightStep(C); else if (a.startsWith("t:")) simFightStep(C, a.slice(a.indexOf(":", 2) + 1)); else if (a.startsWith("a:") && EXT_FIGHT.decode) simFightStep(C, null, { entry: a, res: EXT_FIGHT.decode(a, C) }); else if (a.startsWith("o:")) { const [, kind, id] = a.split(":"); if (kind === "title") bookTitle(C, +id); else C.nextOffer = { kind, id: +id }; C.log.push(a); } else if (a.startsWith("c:")) choose(C, a.slice(2)); else if (a === "r") retireNow(C); else if (a.startsWith("L:")) legendEnter(C, +a.slice(2)); else if (a.startsWith("l:")) { const q = a.split(":"), ent = q.length > 3 ? q.slice(3).join(":") : null, res = ent && EXT_FIGHT.decode ? EXT_FIGHT.decode(ent, C) : null; legendFight(C, q[1], +q[2], res ? { entry: ent, res } : null); } else if (a === "lq") legendQuit(C); else if (a === "rk") { C.rk = true; C.log.push("rk"); } else if (a === "ob") { C.ob = true; C.log.push("ob"); } else if (a.startsWith("fs:")) setFocus(C, a.slice(3)); else if (a.startsWith("cm:")) setCamp(C, a.slice(3)); else if (a.startsWith("tp:")) { const q = a.split(":"); trainSkill(C, q[1], +q[2]); } }
   return C;
 }
 
@@ -7284,12 +7431,8 @@ function header() {
   return `<header class="top"><button class="brand" data-act="home" aria-label="Skill Spin MMA home">Skill <b>Spin</b> <span class="sport">MMA</span></button>
   ${S.screen === "home" ? `<span class="roundlbl">${S.daily ? "Daily " + today() : "Free play"} · ${poolName(S.pool)}</span>` : `<span class="roundlbl"><span id="savest" class="savest" title="${saveStateTitle()}">${saveStateText()}</span> ${S.daily ? "Daily " + (S.dailyDate || today()) : "Free play"}${S.screen === "draft" ? ` · ${poolName(S.draftPool)} pool` : ""}</span>`}</header>`;
 }
-function homeView() {
-  const L = store.get("legends", []), nAch = ACH.filter(a => ACHS.u[a.id]).length;
-  const best = RK.entries().reduce((m, e) => Math.max(m, +e.score || 0), 0);
-  return `${header()}
-  ${RK.heroHTML({ portrait: portrait({ look: myLook(), div: S.div, size: 96, title: S.name || "Your fighter" }), stats: [{ label: "Careers", value: RK.careersN() }, { label: "Medals", value: `${nAch}/${ACH.length}` }, { label: "Best résumé", value: best ? f1(best) : "—" }] })}
-  <section class="playcard">
+function spinPlaycard() {
+  return `  <section class="playcard">
     <div class="goal">${NSK} spins.<br>One fighter.</div>
     <p>The reel lands on a real UFC fighter (plus a few Pride and Bellator legends). Take <b>one</b> of his skills at his prime. Fifteen rounds, fifteen skills, from striking volume to chin to frame. Then fight your way through today's UFC: the Contender Series, the rankings, title shots, belts and the Hall of Fame call.</p>
     <div class="form">
@@ -7305,6 +7448,61 @@ function homeView() {
     <div class="rk-seg" role="group" aria-label="Draft pool">${POOLS.map(([k, l]) => `<button class="chip pc" data-act="pool" data-v="${k}" aria-pressed="${S.pool === k}" title="${k === "all" ? "Every fighter in the game" : esc(POOL_RULE)}">${l}</button>`).join("")}</div>
     <p class="poolnote"><b style="color:var(--text)">${poolName(S.pool)} pool</b> · ${poolList(S.pool).length} fighters. ${S.pool === "all" ? "Every fighter in the game, any era." : POOL_RULE} Each pool keeps its own daily and its own Hall of Legends.</p>
   </div>
+`;
+}
+// ---------- classic career: the start card (name, look, weight class, a fighting style)
+function clsPlaycard() {
+  const sel = CLS_ARCH[S.arch] ? S.arch : "boxer", A = CLS_ARCH[sel], R = clsStart(sel);
+  const top = SK.map((k, i) => [k, R[i]]).filter(([k]) => k !== "frame").sort((x, y) => y[1] - x[1]);
+  return `<section class="playcard">
+    <div class="goal">Pick a style.<br>Build a champion.</div>
+    <p>Start raw on the regional circuit and earn your way to the Contender Series and the UFC. Every fight earns <b>training points</b>: more for wins, finishes and bonuses, more or less depending on the <b>camp</b> you run. Spend them in the gym between fights to build the fighter you want, up to your style's ceilings. No spins, no shortcuts.</p>
+    <div class="form">
+      <label>Fighter name<span class="nmrow"><input id="nm" maxlength="40" placeholder="Created Fighter" value="${esc(S.name)}" autocomplete="off"><button class="btn ghost sm" data-act="randname" type="button" aria-label="Random name">🎲 Random</button></span></label>
+      <div><div class="roundlbl" style="margin-bottom:6px">Look</div>${lookEditor()}</div>
+      <div><div class="roundlbl" style="margin-bottom:6px">Weight class</div><div class="chiprow" role="group" aria-label="Weight class">${DIVS.map((d, i) => `<button class="chip" data-act="div" data-v="${i}" aria-pressed="${S.div === i}" title="${d}">${DAB[i]} · ${LBS[i]}</button>`).join("")}</div><div class="note" style="margin-top:6px">${DIVS[S.div]} (${LBS[S.div]} lb)</div></div>
+      <div><div class="roundlbl" style="margin-bottom:6px">Fighting style</div>
+        <div class="archgrid" role="group" aria-label="Fighting style">${CLS_KEYS.map(k => { const X = CLS_ARCH[k], Rk = clsStart(k), best = SK.map((s2, i) => [s2, Rk[i]]).filter(([s2]) => s2 !== "frame").sort((x, y) => y[1] - x[1]).slice(0, 3); return `<button class="archopt${k === sel ? " on" : ""}" data-act="arch" data-v="${k}" aria-pressed="${k === sel}"><b>${X.n}</b><span>${best.map(([s2, r]) => `${SKA[s2]} ${r}`).join(" · ")}</span></button>`; }).join("")}</div>
+        <div class="archinfo"><b>${A.n}.</b> ${esc(A.d)}<br><span class="note">Starts at OVR ${ovrOf(R)}. Best: ${top.slice(0, 3).map(([k, r]) => `${SKN[k]} ${r}`).join(", ")}. Ceilings: ${sel === "allround" ? "92 in everything" : `<b>97</b> in ${Object.keys(A.up).map(k => SKN[k]).join(", ")}; 92 in the rest${Object.keys(A.dn).length ? `; <b>84</b> in ${Object.keys(A.dn).map(k => SKN[k]).join(", ")}` : ""}`}.</span></div>
+      </div>
+    </div>
+    <button class="rk-cta" data-act="clsgo">Start career as a ${esc(A.n)}</button>
+    <span class="note">Your camp choice and every point you spend are saved with the career.</span>
+  </section>`;
+}
+function clsStartCareer() {
+  const nm = ($("#nm") && $("#nm").value.trim()) || "Created Fighter", key = CLS_ARCH[S.arch] ? S.arch : "boxer";
+  S.name = nm.slice(0, 40); store.set("name", S.name); store.set("div", S.div); S.daily = false;
+  S.picks = {}; S.nickOpts = null; S.nickRoll = 0; S.screen = "build";
+  S.build = { name: S.name, div: S.div, ratings: clsStart(key), cls: key, era: 1, rk: 1, ob: 1, lp: 1, nb: 1, tac: 1, pool: "cls", look: Object.assign({}, S.look || lookFrom(hash("look|" + (S.name || "x")))) };
+  render(); window.scrollTo(0, 0);
+}
+// ---------- classic career: the training camp panel (between fights)
+function campPanel(C) {
+  if (!C.cls || C.retired) return "";
+  const K = C.cls, now = ratingsAt(C, C.age), cost = campCost(C), cash = campCash(C);
+  const rows = SK.map((k, i) => {
+    if (k === "frame") return "";
+    const card = clsCard(C, i), cap = clsCap(K.arch, k), c = tpCost(card, k), shown = clamp(now[i] + CAGE, 15, 99), maxed = card >= cap;
+    const age = shown < card ? ` <small class="neg" title="Age">−${card - shown}</small>` : "";
+    return `<div class="trrow${maxed ? " max" : ""}"><span class="k" title="${esc(SKD[k])}">${SKN[k]}</span><span class="tbar" aria-hidden="true"><i style="width:${clamp((card - 30) / (cap - 30) * 100, 0, 100)}%"></i></span><span class="r">${shown}${age}<small>/${cap}</small></span>
+      ${maxed ? `<span class="tcost">max</span>` : `<span class="tcost">${c} TP</span><button class="btn ghost sm tb" data-act="train" data-v="${k}:1" ${K.tp < c ? "disabled" : ""} aria-label="Train ${SKN[k]} +1">+1</button><button class="btn ghost sm tb" data-act="train" data-v="${k}:5" ${K.tp < c ? "disabled" : ""} aria-label="Train ${SKN[k]} up to +5">+5</button>`}</div>`;
+  }).join("");
+  return `<section class="panel camppanel" id="camp"><h3><span>Training camp</span><small>${K.tp} TP to spend</small></h3><div class="cp-body">
+    <div class="roundlbl">Camp for the next fight</div>
+    <div class="campgrid" role="group" aria-label="Camp">${Object.entries(CAMPS).map(([k, X]) => { const dis = k === "elite" && cash < cost && K.camp !== "elite"; return `<button class="campopt${K.camp === k ? " on" : ""}" data-act="camp" data-v="${k}" aria-pressed="${K.camp === k}" ${dis ? "disabled" : ""}><b>${X.n}</b><span>${esc(X.d)}${k === "elite" ? ` · ${money(cost)} (you have ${money(Math.max(0, cash))})` : ""}</span></button>`; }).join("")}</div>
+    <div class="roundlbl" style="margin-top:4px">Spend TP <span class="note">· costs rise as a skill climbs · ${C.age >= 30 ? "after 30 you earn less TP and age starts taking points back" : "after 30 you earn less TP and age starts taking points back"}</span></div>
+    <div class="trlist">${rows}</div>
+    <div class="ctrl" style="margin:0"><button class="btn sm" data-act="autotrain" ${K.tp <= 0 ? "disabled" : ""}>Auto-spend (best value)</button><span class="note">Earned ${K.earned} TP over ${plural(K.camps, "camp")}${K.spent ? ` · ${money(K.spent)} on elite camps` : ""}</span></div>
+  </div></section>`;
+}
+function homeView() {
+  const L = store.get("legends", []), nAch = ACH.filter(a => ACHS.u[a.id]).length;
+  const best = RK.entries().reduce((m, e) => Math.max(m, +e.score || 0), 0);
+  return `${header()}
+  ${RK.heroHTML({ portrait: portrait({ look: myLook(), div: S.div, size: 96, title: S.name || "Your fighter" }), stats: [{ label: "Careers", value: RK.careersN() }, { label: "Medals", value: `${nAch}/${ACH.length}` }, { label: "Best résumé", value: best ? f1(best) : "—" }] })}
+  <div class="rk-seg cmodes" role="group" aria-label="Game mode"><button class="chip" data-act="cmode" data-v="spin" aria-pressed="${S.cmode !== "classic"}">🎰 Skill Spin</button><button class="chip" data-act="cmode" data-v="classic" aria-pressed="${S.cmode === "classic"}">🥊 Classic career</button></div>
+  ${S.cmode === "classic" ? clsPlaycard() : spinPlaycard()}
   ${RK.shelfHTML({ title: "Trophy shelf" })}
   ${RK.bestHTML({ act: "load", exists: id => (S.saves || []).some(x => x.id === id), scoreLabel: "Résumé", portrait: rkPortrait })}
   ${L.length ? hallPanel(L) : ""}
@@ -7321,7 +7519,7 @@ function homeView() {
 }
 function hallPanel(L) {
   const tab = S.hofTab || S.pool, M = L.filter(x => poolKey(x.pool) === tab);
-  const tabs = `<div class="chiprow" role="tablist" aria-label="Draft pool" style="padding:10px 14px 0">${POOLS.map(([k, l]) => `<button class="chip" role="tab" data-act="hoftab" data-v="${k}" aria-pressed="${tab === k}">${l} · ${L.filter(x => poolKey(x.pool) === k).length}</button>`).join("")}</div>`;
+  const tabs = `<div class="chiprow" role="tablist" aria-label="Draft pool" style="padding:10px 14px 0">${POOLS_ALL.map(([k, l]) => `<button class="chip" role="tab" data-act="hoftab" data-v="${k}" aria-pressed="${tab === k}">${l} · ${L.filter(x => poolKey(x.pool) === k).length}</button>`).join("")}</div>`;
   const rows = M.map(x => ({ name: x.n, tag: DAB[x.div], sub: [x.v, `UFC ${x.rec}`, x.titles ? plural(x.titles, "title") : "", x.def ? plural(x.def, "defense") : ""].filter(Boolean).join(" · "), score: "#" + x.rank }));
   return RK.podiumHTML(rows, { tabs, title: "Your Hall of Legends", sub: "best careers on this device, by draft pool", empty: `No finished ${poolName(tab)} careers yet.` });
 }
@@ -7332,8 +7530,8 @@ function barRow(k, r, opts) {
 function playerCard(R, picks, opts) {
   const s = styleScores(R);
   return `<section class="card${opts.final ? " " + RK.frameClass() : ""}"${opts.final ? " data-rk-framed" : ""}>
-    <div class="cardtop"><div class="nm">${esc(opts.final && S.build ? S.build.name : S.name)}</div><div class="ovr">${ovrOf(R)}<small>${opts.final ? "Prime OVR" : "Proj. OVR"}</small></div>
-    <div class="sub">${DIVS[S.div]} · ${opts.final ? archetype(R) : `${Object.keys(picks).length} of ${NSK} skills`}</div></div>
+    <div class="cardtop"><div class="nm">${esc(opts.final && S.build ? S.build.name : S.name)}</div><div class="ovr">${ovrOf(R)}<small>${opts.final ? (S.build && S.build.cls ? "Start OVR" : "Prime OVR") : "Proj. OVR"}</small></div>
+    <div class="sub">${DIVS[S.div]} · ${opts.final ? (S.build && S.build.cls ? CLS_ARCH[S.build.cls].n : archetype(R)) : `${Object.keys(picks).length} of ${NSK} skills`}</div></div>
     <div class="proj">Striking <b>${s.str}</b> · Grappling <b>${s.grp}</b> · Defense <b>${s.def}</b> · Gas <b>${s.gas}</b></div>
     ${SK.map(k => { const p = picks[k]; return p ? `<div class="slot${S.last === k && !opts.final ? " glow" : ""}"><span class="k">${SKA[k]}</span><span class="who">${esc(p.from)}<small>${esc(p.note)}</small></span><span class="r rk-rt ${RK.rarity(p.r).cls}">${p.r}</span></div>` : `<div class="slot empty"><span class="k">${SKA[k]}</span><span class="who">${SKN[k]}</span><span class="r t1" style="color:#56627a">—</span></div>`; }).join("")}
   </section>`;
@@ -7403,18 +7601,18 @@ function buildView() {
   return `${header()}
   <div class="board">
     <section class="score">
-      <div class="roundlbl">Draft complete ${poolTag(S.build.pool)}</div>
+      <div class="roundlbl">${S.build.cls ? `Classic career ${poolTag("cls")}` : `Draft complete ${poolTag(S.build.pool)}`}</div>
       ${lookEditor()}
-      <div class="headline">${esc(S.build.name)}: ${archetype(R)}</div>
+      <div class="headline">${esc(S.build.name)}: ${S.build.cls ? CLS_ARCH[S.build.cls].n : archetype(R)}</div>
       ${nickPicker()}
-      <div class="kpis"><div class="kpi gold"><b>${ovrOf(R)}</b><span>Prime OVR</span></div><div class="kpi"><b>${avg}</b><span>Avg skill</span></div><div class="kpi"><b>${R.filter(x => x >= 90).length}</b><span>Skills 90+</span></div><div class="kpi"><b>${R.filter(x => x < 50).length}</b><span>Below 50</span></div></div>
+      <div class="kpis"><div class="kpi gold"><b>${ovrOf(R)}</b><span>${S.build.cls ? "Starting OVR" : "Prime OVR"}</span></div><div class="kpi"><b>${avg}</b><span>Avg skill</span></div><div class="kpi"><b>${R.filter(x => x >= 90).length}</b><span>Skills 90+</span></div><div class="kpi"><b>${R.filter(x => x < 50).length}</b><span>Below 50</span></div></div>
       <p style="margin:0">Best: ${sorted.slice(0, 3).map(([k, r]) => `<b>${SKN[k]} ${r}</b>`).join(", ")}. Weakest: ${sorted.slice(-2).map(([k, r]) => `${SKN[k]} ${r}`).join(", ")}.</p>
-      <p class="note" style="margin:0">Those are paper ratings at his prime. A fighter stitched together from fifteen legends never fully gels, so in the cage every skill plays ${CAGE0 - ERA_B} points lower: that's the OVR on the career screen, right where today's UFC contenders sit. He also arrives raw in his early 20s, grows into his prime around 28 and then the sport takes its toll.</p>
+      ${S.build.cls ? `<p class="note" style="margin:0">That's where he starts. Every fight earns training points to spend between fights, up to the ceilings of his style; what he becomes is up to you. After 30 he earns less, and age starts taking points back.</p>` : ""}<p class="note" style="margin:0${S.build.cls ? ";display:none" : ""}">Those are paper ratings at his prime. A fighter stitched together from fifteen legends never fully gels, so in the cage every skill plays ${CAGE0 - ERA_B} points lower: that's the OVR on the career screen, right where today's UFC contenders sit. He also arrives raw in his early 20s, grows into his prime around 28 and then the sport takes its toll.</p>
       ${S.build.alumni ? `<div class="alumnote">${portrait({ look: S.build.alumni[0].look, div: S.build.div, size: 48, ring: "var(--alum)", title: S.build.alumni[0].name })}<p class="note" style="margin:0"><b style="color:var(--alum)">⚡ A past fighter is back.</b> ${esc(S.build.alumni[0].name)} (UFC ${esc(S.build.alumni[0].rec || "0-0")}${S.build.alumni[0].titles ? `, ${plural(S.build.alumni[0].titles, "title win")}` : ""}) joins the ${DIVS[S.build.div]} division at his prime, in-cage OVR ${ovrOf(S.build.alumni[0].R)}. Beat the fighter you built before.</p></div>` : ""}
       ${S.build.rival ? `<p class="note" style="margin:0"><b style="color:var(--loss)">A rival is waiting.</b> Someone from your Contender Series class, in your division and built to about your level, will climb the same rankings. Beat him when the UFC books the grudge match.</p>` : ""}
       <div class="ctrl"><button class="btn" data-act="career">Turn pro →</button><button class="btn ghost" data-act="home">Start over</button></div>
     </section>
-    <div class="side">${playerCard(R, S.picks, { final: true })}</div>
+    <div class="side">${playerCard(R, S.build.cls ? Object.fromEntries(SK.map((k, i) => [k, { r: R[i], from: k === "frame" ? "Set by weight class" : "Starting level", note: k === "frame" ? "" : `ceiling ${clsCap(S.build.cls, k)}` }])) : S.picks, { final: true })}</div>
   </div>`;
 }
 const methTxt = f => f.method === "KO" ? `KO/TKO (${f.detail})` : f.method === "SUB" ? `Submission (${f.detail})` : f.method === "DEC" ? `Decision (${f.detail})` : "Draw";
@@ -7443,20 +7641,20 @@ function careerView() {
   return `${header()}
   ${careerNav(C)}
   <section class="score ${RK.frameClass()}" data-rk-framed>
-    <div class="idrow">${mePt(myPortrait(84))}<div style="flex:1;min-width:0"><div class="nm">${meName(C.name)}</div>${sheetHint()}<div class="sub">${poolTag(S.build && S.build.pool)} ${DIVS[C.div]} · ${archetype(C.peak)} · Age ${Math.floor(C.age)} · ${C.signed ? `UFC ${C.rec.w}-${C.rec.l}${C.rec.d ? "-" + C.rec.d : ""} · ${rankTxt(rk)}` : `Pro ${C.pro.w}-${C.pro.l} · regional circuit`}${belts.length ? ` · 🏆 ${belts.join(" & ")} champion` : ""}</div></div>
-      <div class="ovr">${ovrOf(R)}<small>OVR now · prime ${ovrOf(C.peak)}</small></div></div>
-    ${focusLine(C)}
-    ${!last ? `<p style="margin:0">${esc(C.name)} turns pro at ${C.age0} and goes ${C.pro.w}-${C.pro.l} on the regional scene. Next stop: <b>Dana White's Contender Series</b> for a UFC contract.</p>` : `
+    <div class="idrow">${mePt(myPortrait(84))}<div style="flex:1;min-width:0"><div class="nm">${meName(C.name)}</div>${sheetHint()}<div class="sub">${poolTag(S.build && S.build.pool)} ${DIVS[C.div]} · ${C.cls ? CLS_ARCH[C.cls.arch].n : archetype(C.peak)} · Age ${Math.floor(C.age)} · ${C.signed ? `UFC ${C.rec.w}-${C.rec.l}${C.rec.d ? "-" + C.rec.d : ""} · ${rankTxt(rk)}` : `Pro ${C.pro.w}-${C.pro.l} · regional circuit`}${belts.length ? ` · 🏆 ${belts.join(" & ")} champion` : ""}</div></div>
+      <div class="ovr">${ovrOf(R)}<small>${C.cls ? `OVR now · ${CLS_ARCH[C.cls.arch].n}${C.cls.tp ? ` · <a href="#camp" class="tplink">${C.cls.tp} TP</a>` : ""}` : `OVR now · prime ${ovrOf(C.peak)}`}</small></div></div>
+    ${C.cls ? "" : focusLine(C)}
+    ${!last ? (C.cls ? `<p style="margin:0">${esc(C.name)} turns pro at ${C.age0}: a ${CLS_ARCH[C.cls.arch].n.toLowerCase()} with everything still to learn. ${CLS_REG} fights on the regional circuit, then the <b>Contender Series</b> for a UFC contract. Pick a camp below before each fight.</p>` : `<p style="margin:0">${esc(C.name)} turns pro at ${C.age0} and goes ${C.pro.w}-${C.pro.l} on the regional scene. Next stop: <b>Dana White's Contender Series</b> for a UFC contract.</p>`) : `
       <div><div class="roundlbl">${mLabel(last.m)} · ${esc(last.event)}${last.title ? ` · ${DIVS[last.div]} title fight` : ""}</div>
       <div class="headline" style="color:${last.res === "W" ? "var(--win)" : last.res === "L" ? "var(--loss)" : "var(--text)"}">${fightLine(last)}</div>
       ${last.bonus.length || last.events.length ? `<div class="awchips">${last.bonus.map(b => `<span class="aw gold">${b}</span>`).join("")}</div><ul class="events">${last.events.map(e => `<li>${e}</li>`).join("")}</ul>` : ""}
       <div class="ctrl" style="margin-top:8px"><button class="btn ghost sm" data-act="fight" data-v="${C.fights.length - 1}">Full fight stats</button></div></div>`}
     <div class="kpis"><div class="kpi gold"><b>${C.titleWins}</b><span>Title wins</span></div><div class="kpi gold"><b>${C.defenses}</b><span>Defenses</span></div><div class="kpi"><b>${C.rec.w}-${C.rec.l}</b><span>UFC record</span></div><div class="kpi"><b>${T.fin}</b><span>Finishes</span></div><div class="kpi"><b>${C.bonus}</b><span>Bonuses</span></div></div>
     ${alumCallout(C)}
-    ${C.pending ? "" : `<div class="ctrl"><button class="btn" data-act="watch">${C.signed ? "Watch next fight" : "Fight on the Contender Series"}</button>${arcOn() ? `<button class="btn ghost" data-act="arcnext">🎮 Play next fight</button>` : ""}<button class="btn ghost" data-act="next">Quick sim fight</button>${C.signed ? `<button class="btn ghost" data-act="totitle">Sim to title fight</button>${C.rk && autoOn() ? `<button class="btn ghost" data-act="totitleA">Sim to title fight (auto-accept)</button>` : ""}` : ""}<button class="btn ghost" data-act="year">Sim 1 year</button><button class="btn ghost" data-act="all">Sim to retirement</button>${C.age >= 30 && last ? `<button class="btn ghost" data-act="retire">Retire now</button>` : ""}</div><div class="autorow"><button class="autotog" type="button" data-act="autotog" role="switch" aria-checked="${autoOn()}"><span class="sw" aria-hidden="true"></span>Auto-decide during long sims: <b>${autoOn() ? "ON" : "OFF"}</b></button><span class="note">Next fight in about ${plural(C.gap, "month")}. ${autoOn() ? "Long sims keep going through decisions, offers and title previews (Sim to title fight still stops at the preview)." : "Sims pause at every career decision."}</span></div>${C.tac ? tacModeCtl("career") : ""}${S.autoSum ? `<p class="autosum" role="status">${esc(S.autoSum)}</p>` : ""}`}
+    ${C.pending ? "" : `<div class="ctrl"><button class="btn" data-act="watch">${C.signed ? "Watch next fight" : C.cls && C.cls.reg < CLS_REG ? `Regional fight ${C.cls.reg + 1} of ${CLS_REG}` : "Fight on the Contender Series"}</button>${arcOn() ? `<button class="btn ghost" data-act="arcnext">🎮 Play next fight</button>` : ""}<button class="btn ghost" data-act="next">Quick sim fight</button>${C.signed ? `<button class="btn ghost" data-act="totitle">Sim to title fight</button>${C.rk && autoOn() ? `<button class="btn ghost" data-act="totitleA">Sim to title fight (auto-accept)</button>` : ""}` : ""}<button class="btn ghost" data-act="year">Sim 1 year</button><button class="btn ghost" data-act="all">Sim to retirement</button>${C.age >= 30 && last ? `<button class="btn ghost" data-act="retire">Retire now</button>` : ""}</div><div class="autorow"><button class="autotog" type="button" data-act="autotog" role="switch" aria-checked="${autoOn()}"><span class="sw" aria-hidden="true"></span>Auto-decide during long sims: <b>${autoOn() ? "ON" : "OFF"}</b></button><span class="note">Next fight in about ${plural(C.gap, "month")}. ${autoOn() ? "Long sims keep going through decisions, offers and title previews (Sim to title fight still stops at the preview)." : "Sims pause at every career decision."}</span></div>${C.tac ? tacModeCtl("career") : ""}${S.autoSum ? `<p class="autosum" role="status">${esc(S.autoSum)}</p>` : ""}`}
   </section>
   ${C.pending ? decisionPanel(C) : S.offers ? offersPanel(C) : S.tprev ? titlePanel(C) : ""}
-  ${focusPanel(C)}
+  ${C.cls ? campPanel(C) : focusPanel(C)}
   ${goalsPanel(C)}
   ${C.rival ? rivalPanel(C, false) : ""}
   ${C.fights.length ? `<section class="panel"><h3>Trophy case</h3>${trophyCase(C, false)}</section>` : ""}
@@ -7781,7 +7979,7 @@ function savePrime(b, div) {
 }
 // one past fighter from the same weight class joins the new career: a pick weighted toward the strongest (UI randomness, stored in the build)
 function pickAlumni(build) {
-  const L = (S.saves || []).filter(sv => savedOK(sv) && finalDiv(sv) === build.div).map(sv => ({ sv, R: savePrime(sv.build, build.div) })).sort((a, b) => ovrOf(b.R) - ovrOf(a.R)).slice(0, 3);
+  const L = (S.saves || []).filter(sv => savedOK(sv) && !sv.build.cls && finalDiv(sv) === build.div).map(sv => ({ sv, R: savePrime(sv.build, build.div) })).sort((a, b) => ovrOf(b.R) - ovrOf(a.R)).slice(0, 3);
   if (!L.length) return null;
   const W = [0.6, 0.25, 0.15].slice(0, L.length), tot = W.reduce((a, b) => a + b, 0); let x = Math.random() * tot, k = 0; while (k < L.length - 1 && (x -= W[k]) > 0) k++;
   const { sv, R } = L[k], s = sv.sum || {};
@@ -7807,7 +8005,7 @@ function alumCallout(C) {
 const DREAM_N = 10, dreamRos = {};
 function dreamPool(div) {
   const out = [];
-  (S.saves || []).filter(sv => savedOK(sv) && finalDiv(sv) === div).forEach(sv => { const s = sv.sum || {}; out.push({ key: "s:" + sv.id, n: String(sv.name || "Fighter"), look: lookOfBuild(sv.build), R: savePrime(sv.build, div), sub: `Your fighter · UFC ${s.rec || "0-0"}${s.titles ? ` · ${plural(s.titles, "title win")}` : ""}` }); });
+  (S.saves || []).filter(sv => savedOK(sv) && !sv.build.cls && finalDiv(sv) === div).forEach(sv => { const s = sv.sum || {}; out.push({ key: "s:" + sv.id, n: String(sv.name || "Fighter"), look: lookOfBuild(sv.build), R: savePrime(sv.build, div), sub: `Your fighter · UFC ${s.rec || "0-0"}${s.titles ? ` · ${plural(s.titles, "title win")}` : ""}` }); });
   (dreamRos[div] = dreamRos[div] || legendRoster(div)).forEach((x, i) => out.push({ key: "l:" + i, n: x.n, R: x.P.map((r, j) => SK[j] === "frame" ? r : clamp(r - CAGE0 + ERA_B, 15, 99)), legend: true, sub: `All-time great · UFC ${x.rec[0]}-${x.rec[1]}` }));
   return out;
 }
@@ -7918,6 +8116,12 @@ document.addEventListener("click", e => {
   else if (a === "mode") { const nm = $("#nm"); if (nm) S.name = nm.value; S.daily = v === "daily"; render(); }
   else if (a === "pool") { const nm = $("#nm"); if (nm) S.name = nm.value; S.pool = poolKey(v); S.hofTab = null; store.set("pool", S.pool); render(); }
   else if (a === "hoftab") { S.hofTab = poolKey(v); render(); }
+  else if (a === "cmode") { const nm = $("#nm"); if (nm) S.name = nm.value; S.cmode = v === "classic" ? "classic" : "spin"; store.set("cmode", S.cmode); render(); }
+  else if (a === "arch") { const nm = $("#nm"); if (nm) S.name = nm.value; S.arch = v; store.set("arch", v); render(); }
+  else if (a === "clsgo") clsStartCareer();
+  else if (a === "camp" && S.C) { const y = window.scrollY; if (!setCamp(S.C, v)) toast("Not enough money banked for the elite gym yet"); saveSoon(); render(); window.scrollTo(0, y); }
+  else if (a === "train" && S.C) { const y = window.scrollY, [k, n] = v.split(":"); if (!trainSkill(S.C, k, +n)) toast(S.C.cls.tp < tpCost(clsCard(S.C, SK.indexOf(k)), k) ? "Not enough TP" : "That's his ceiling"); saveSoon(); render(); window.scrollTo(0, y); }
+  else if (a === "autotrain" && S.C) { const y = window.scrollY, n = autoTrain(S.C); toast(n ? `Spent on ${plural(n, "rating point")}` : "Nothing affordable right now"); saveSoon(); render(); window.scrollTo(0, y); }
   else if (a === "achall") { S.achAll = !S.achAll; render(); }
   else if (a === "div") { const nm = $("#nm"); if (nm) S.name = nm.value; S.div = +v; render(); }
   else if (a === "start") startDraft();
