@@ -2197,8 +2197,10 @@ void main(){
   const SKN = { volume: "Volume", accuracy: "Accuracy", power: "Power", kicks: "Kicks", sdef: "Striking defense", chin: "Chin", wrestle: "Wrestling", tdd: "Takedown defense", subs: "Submissions", scramble: "Scrambling", control: "Top control", cardio: "Cardio", iq: "Fight IQ", finish: "Finishing", frame: "Reach and size" };
   const BEAT = .45;   // the get-up rhythm (seconds per pulse; ten pulses is the count)
   const WORD = { jab: "jab", bjab: "body jab", cross: "cross", lhook: "hook", bhook: "body hook", rhook: "hook", upper: "uppercut", overhand: "overhand", legk: "low kick", bodyk: "body kick", headk: "head kick", teep: "teep", sbk: "spin kick", sbf: "spin fist", dirty: "short", elbow: "elbow", knee: "knee", kneeh: "knee" };
-  const POSN = ["guard", "half guard", "mount"];
-  const SUBS_TOP = [["Guillotine Choke", "D'Arce Choke", "Kimura"], ["Kimura", "Arm-Triangle Choke", "D'Arce Choke"], ["Armbar", "Arm-Triangle Choke", "Rear-Naked Choke"]];
+  const POSN = ["guard", "half guard", "side control", "mount", "back"];
+  const GAP_G = [58, 44, 30, 16, 14];                       // top's distance from him along the line, by position
+  const GNP_M = [.75, 1, 1.15, 1.45, 1.3], SUB_E = [-.02, .02, .05, .08, .12];   // ground and pound / submission edge, by position
+  const SUBS_TOP = [["Guillotine Choke", "D'Arce Choke", "Kimura"], ["Kimura", "Arm-Triangle Choke", "D'Arce Choke"], ["Kimura", "Arm-Triangle Choke", "Americana"], ["Armbar", "Arm-Triangle Choke", "Ezekiel Choke"], ["Rear-Naked Choke", "Body-Triangle Choke", "Rear-Naked Choke"]];
   const SUBS_BOT = ["Triangle Choke", "Armbar", "Guillotine Choke", "Kimura"];
   const koDetail = t => ({ headk: "Head kick", bodyk: "Body kick", sbk: "Spinning back kick", teep: "Front kick", legk: "Leg kicks", sbf: "Spinning back fist", elbow: "Elbows", knee: "Knees", kneeh: "Knees", bjab: "Body shot", bhook: "Body shot", shk: "Spinning heel kick", bomb: "Overhand", fknee: "Flying knee" })[t] || "Punches";
   // AI difficulty: reaction time (never faster than 0.16 s), chance to defend what it sees, attack rate, decision quality,
@@ -2378,6 +2380,9 @@ void main(){
     if (["cross", "rhook", "bhook", "upper", "overhand", "sbf", "elbow", "power"].includes(n)) return "cross";
     if (["kick", "legk", "bodyk", "headk", "teep", "sbk", "knee", "kneeh", "kickF", "kickU", "kickB", "spin"].includes(n)) return "kick";
     if (n === "shoot") return "td";
+    if (n === "back" || n === "sweep" || n === "getup" || n === "gside") return n;
+    if (n === "pivotU" || n === "pivotD") return "gside";   // Q / ↑ on a keyboard: take the back (top) or sweep (bottom)
+    if (n === "switch") return "getup";                     // E: stand up from the bottom
     return n === "td" || n === "slip" ? n : null;
   }
   function canonC(n) {
@@ -2492,8 +2497,10 @@ void main(){
     if (z === "S") n = c === "stand" ? "super" : null;
     else if (c === "meter" || c === "downV") n = "jab";
     else if (c === "downA") n = z === "R" ? (g === "hold" ? "cross" : "jab") : z === "L" && g === "tap" ? "slip" : null;
-    else if (c === "top") n = z === "R" ? ({ tap: "gnp", hold: "gnp", up: "kick", holdUp: "kick" })[g] : z === "L" ? ({ fwd: "slip", back: "td" })[g] : "slip";
-    else if (c === "bot") n = z === "R" ? ({ tap: "jab", hold: "jab", up: "kick", holdUp: "kick" })[g] : z === "L" ? ({ tap: "td", fwd: "td", back: "td", up: "slip" })[g] : "td";
+    // the ground, left zone by swipe direction on screen: ↑ improve (pass / recover guard), ← → take the back / sweep,
+    // ↓ let him up / stand up; tap (bottom) = the escape needle; hold = posture (top) / cover (bottom)
+    else if (c === "top") n = z === "R" ? ({ tap: "gnp", hold: "cross", up: "kick", holdUp: "kick" })[g] : z === "L" ? ({ fwd: "slip", up: "slip", back: "td", down: "td", sideL: "back", sideR: "back" })[g] : "slip";
+    else if (c === "bot") n = z === "R" ? ({ tap: "jab", hold: "jab", up: "kick", holdUp: "kick" })[g] : z === "L" ? ({ tap: "td", fwd: "slip", up: "slip", back: "getup", down: "getup", sideL: "sweep", sideR: "sweep" })[g] : "td";
     else if (c === "clinch") n = z === "R" ? ({ tap: "clnext", hold: "elbow", up: "kneeh", holdUp: "kneeh", fwd: "knee", back: "dirty" })[g] : z === "L" ? ({ tap: "slip", back: "slip" })[g] : "td";
     else n = z === "R" ? ({ tap: "combo", hold: "power", up: "kickU", holdUp: "spin", fwd: "kickF", back: "kickB" })[g] : z === "L" ? ({ tap: "slip", dbl: "roll", fwd: "stepF", back: "stepBk", up: "sideU", down: "sideD", sideR: "sideR", sideL: "sideL", fwdL: "dashF", backL: "dashB" })[g] : "td";
     F.lastRes = null;
@@ -2929,13 +2936,17 @@ void main(){
     top.rocked = Math.min(top.rocked, 0); top.charge = bot.charge = false;
     bot.dir = top.x > bot.x ? 1 : -1; top.dir = -bot.dir;
     const e = sweepLog || F.log(top.side, `${top.name} takes ${short(bot.name)} down`);
-    F.g = { top, bot, pos, t: 0, c0: F.clockF(), max: clamp(6 + 1.2 * (top.z.control - bot.z.scramble), 5, 8), e, gnp: 0, sweep: !!sweepLog && /sweeps/.test(sweepLog[2]), dump: !!sweepLog && /dumps/.test(sweepLog[2]) };
+    // the referee stands them up when nothing is happening (no pass, no landed shot, no attempt for 4.5 s), or at 15 s;
+    // ref: his stoppage meter (unanswered ground and pound fills it, fighting back drains it)
+    F.g = { top, bot, pos, t: 0, c0: F.clockF(), max: 15, idle: clamp(4.5 + .4 * (top.z.control - bot.z.scramble), 3.5, 6), last: 0, ref: 0, e, gnp: 0, sweep: !!sweepLog && /sweeps/.test(sweepLog[2]), dump: !!sweepLog && /dumps/.test(sweepLog[2]) };
     F.g.E = { n: F.rng(), dir: 1, speed: 1.05, prog: 0, need: 2, cool: .4, flash: 0, last: null, c: .5, w: .25 };
+    F.g.face = bot.dir;
     newEsc(F);
   }
   function newEsc(F) {
     const G = F.g, E = G.E, b = G.bot, t = G.top, rng = F.rng;
-    E.w = clamp(.24 + .04 * (b.z.scramble - t.z.control) + .03 * b.z.wrestle - .04 * G.pos + .12 * (b.stam - t.stam) / 100 - .03 * E.prog - (b.human ? .04 * F.diff.meter : 0), .1, .38);
+    E.w = clamp(.24 + .04 * (b.z.scramble - t.z.control) + .03 * b.z.wrestle - .03 * G.pos + .12 * (b.stam - t.stam) / 100 - .03 * E.prog - (b.human ? .04 * F.diff.meter : 0), .1, .38);
+    E.need = G.pos >= 4 ? 3 : 2;
     E.c = .2 + rng() * .6;
   }
   // the zone he has to hit right now (posture on top shrinks it)
@@ -2947,7 +2958,7 @@ void main(){
     f.act = { type: "esc", t: 0, win: .08, dur: .4, id: ++F.actId, done: true };
     f.stam = Math.max(0, f.stam - (inZ ? 3 : 6) * f.k.costM);
     if (!inZ) { F.say(o.side, "HELD DOWN", "#93a0b4"); newEsc(F); return true; }
-    E.prog++; F.emit("tighten");
+    E.prog++; F.emit("tighten"); G.ref = Math.max(0, G.ref - 25); G.last = G.t;
     if (E.prog < E.need) { F.say(f.side, "ALMOST OUT", "#7fb4ff"); newEsc(F); return true; }
     F.tal(f, "escapes");
     // he is out: a sweep if he is the better scrambler and the fresher man, otherwise back to his feet
@@ -2977,34 +2988,49 @@ void main(){
   function groundCmd(F, f, o, name) {
     const G = F.g, rng = F.rng, top = G.top === f;
     if (!top && name === "td") return escPress(F, f);
+    if (name === "gside") name = top ? "back" : "sweep";
     if (f.cd > 0 || f.stam < 2) return false;
     const go = (type, cd, cost) => { f.cd = cd; f.stam = Math.max(0, f.stam - cost * f.k.costM); f.act = { type, t: 0, win: .08, dur: Math.min(cd, .4), id: ++F.actId, done: true }; };
+    const moved = (who, txt, col) => { G.last = G.t; newEsc(F); F.say(who.side, txt, col || "#ffb547"); F.emit("gpos", { side: who.side, pos: G.pos }); };
     if (top) {
       if (name === "gnp" || name === "jab" || name === "cross") {
         if (f.blockHeld) return false;   // posturing
-        // one ground-and-pound input: punches, and an elbow every third shot from half guard or mount (K / hold = elbow on a keyboard)
-        const el = name === "cross" || (name === "gnp" && G.pos >= 1 && f.gnpN % 3 === 2);
+        // tap = punches (an elbow every third from half guard on); hold = postured-up elbow / hammer: slower, heavier
+        const el = name === "cross" || (name === "gnp" && G.pos >= 1 && G.pos < 4 && f.gnpN % 3 === 2), big = name === "cross";
         f.gnpN++;
-        go(el ? "gel" : "gp", (el ? .6 : .42) * f.k.spdP, el ? 5 : 3);
+        go(el ? "gel" : "gp", (big ? .72 : el ? .6 : .42) * f.k.spdP, big ? 6 : el ? 5 : 3);
         f.st.sa++; F.tal(f, el ? "gElbow" : "gPunch", 0);
-        const p = clamp(.5 + .06 * f.z.control + .04 * f.k.acc - .06 * o.z.sdef + .08 * G.pos - (o.blockHeld ? .3 : 0) - (el ? .06 : 0), .15, .9);
+        const p = clamp(.5 + .06 * f.z.control + .04 * f.k.acc - .06 * o.z.sdef + .06 * G.pos - (o.blockHeld ? .3 : 0) - (el ? .06 : 0) - (big ? .04 : 0), .15, .92);
         if (rng() < p) {
-          const dmg = (el ? 2.8 : 1.6) * f.k.powM * stamF(f) * (1 + .15 * G.pos) * (o.blockHeld ? .6 : 1) * clamp(1 - .06 * o.z.chin, .7, 1.3);
-          o.dmg.head = Math.min(130, o.dmg.head + dmg); o.flash = .1; G.gnp++;
+          const dmg = (big ? 3.4 : el ? 2.8 : 1.6) * f.k.powM * stamF(f) * GNP_M[G.pos] * (o.blockHeld ? .6 : 1) * clamp(1 - .06 * o.z.chin, .7, 1.3);
+          o.dmg.head = Math.min(130, o.dmg.head + dmg); o.flash = .1; G.gnp++; G.last = G.t;
+          // the referee's meter: unanswered shots fill it (more when he's hurt or not covering); full = stoppage
+          G.ref += dmg * 7 * (o.blockHeld ? .5 : 1) * (o.rocked > 0 ? 1.6 : 1) * (1 + o.dmg.head / 160) * clamp(1 + .08 * f.z.finish, .8, 1.25);
           f.st.sl++; f.st.head++; f.st.gl++; F.tal(f, el ? "gElbow" : "gPunch", 1);
           f.sup = Math.min(100, f.sup + dmg * .6); o.sup = Math.min(100, o.sup + dmg * .7);
-          F.fx.push({ k: "spark", x: o.x - o.dir * 30, y: -28, t: 0, life: .2, big: el ? 2 : 1, col: "#ffe7b0" }); F.emit("hit", { side: f.side, fx: el ? 2 : 1 });
-          hurt(F, f, o, el ? "elbow" : "dirty", dmg, false, false);
+          o.snap = { k: big ? "str" : "hook", side: (f.gnpN % 2 ? 1 : -1), amp: clamp(dmg / 3, .4, 1.3), t: 0 };
+          F.fx.push({ k: "spark", x: o.x - o.dir * 30, y: -28, t: 0, life: .2, big: el || big ? 2 : 1, col: "#ffe7b0" }); F.emit("hit", { side: f.side, fx: big ? 3 : el ? 2 : 1, pool: "head" });
+          if (G.ref >= 100 && !F.practice) { F.tal(f, "gnpStops"); finish(F, f.side, "KO", "Ground and pound", `${f.name} rains down ${big || el ? "elbows" : "punches"} from ${POSN[G.pos]} and the referee steps in: ${f.name} wins by TKO`); return true; }
+          hurt(F, f, o, el || big ? "elbow" : "dirty", dmg, false, big);
         }
         return true;
       }
-      if (name === "kick") { if (f.stam < 8 || f.subCd > 0) return false; go("subT", .6, 9); startSub(F, f, o, pick(rng, SUBS_TOP[G.pos])); return true; }
+      if (name === "kick") { if (f.stam < 8 || f.subCd > 0) return false; go("subT", .6, 9); G.last = G.t; startSub(F, f, o, pick(rng, SUBS_TOP[G.pos])); return true; }
       if (name === "td") { endGround(F, "letup"); return true; }
       if (name === "slip") {
-        if (G.pos >= 2) return false;
+        // advance: guard -> half guard -> side control -> mount
+        if (G.pos >= 3) return false;
         go("pass", .8, 6);
-        if (rng() < sig(-.5 + .9 * (f.z.control - o.z.scramble) + (o.stam < 30 ? .6 : 0) - .5 * G.pos - (o.blockHeld ? -.3 : 0))) { G.pos++; F.say(f.side, G.pos === 2 ? "MOUNT" : "HALF GUARD", "#ffb547"); newEsc(F); }
-        else F.say(o.side, "BLOCKED PASS", "#93a0b4");
+        if (rng() < sig(-.25 + .9 * (f.z.control - o.z.scramble) + (o.stam < 30 ? .6 : 0) - .25 * G.pos + (o.blockHeld ? .3 : 0))) { G.pos++; moved(f, POSN[G.pos].toUpperCase()); F.tal(f, "passes"); }
+        else { G.last = G.t; F.say(o.side, "BLOCKED PASS", "#93a0b4"); }
+        return true;
+      }
+      if (name === "back") {
+        // take the back: from side control or mount, when he turns to escape
+        if (G.pos < 2 || G.pos >= 4) return false;
+        go("pass", .8, 7);
+        if (rng() < sig(-.5 + .8 * (f.z.control + .3 * f.z.subs - o.z.scramble) + (o.stam < 30 ? .5 : 0) - (o.blockHeld ? .2 : 0) + (G.pos === 3 ? .2 : 0))) { G.pos = 4; moved(f, "TAKES THE BACK!"); F.tal(f, "backTakes"); }
+        else { G.last = G.t; F.say(o.side, "TURNS IN", "#93a0b4"); }
         return true;
       }
       return false;
@@ -3012,14 +3038,35 @@ void main(){
     // bottom
     if (name === "jab" || name === "cross" || name === "gnp") {
       go("bs", .5 * f.k.spdP, 3); f.st.sa++; F.tal(f, "gPunch", 0);
-      if (rng() < clamp(.36 + .04 * f.k.acc - .15 * G.pos - (o.blockHeld ? .2 : 0), .08, .7)) { const dmg = 1.6 * f.k.powM; o.dmg.head = Math.min(130, o.dmg.head + dmg); f.st.sl++; f.st.head++; f.st.gl++; F.tal(f, "gPunch", 1); o.flash = .08; F.emit("hit", { side: f.side, fx: 1 }); f.sup = Math.min(100, f.sup + dmg * .6); hurt(F, f, o, "dirty", dmg, false, false); }
+      if (rng() < clamp(.36 + .04 * f.k.acc - .12 * G.pos - (o.blockHeld ? .2 : 0) - (G.pos >= 4 ? .3 : 0), .05, .7)) { const dmg = 1.6 * f.k.powM; o.dmg.head = Math.min(130, o.dmg.head + dmg); f.st.sl++; f.st.head++; f.st.gl++; F.tal(f, "gPunch", 1); o.flash = .08; G.ref = Math.max(0, G.ref - 12); G.last = G.t; F.emit("hit", { side: f.side, fx: 1 }); f.sup = Math.min(100, f.sup + dmg * .6); }
       return true;
     }
-    if (name === "kick") { if (G.pos > 0 || f.stam < 8 || f.subCd > 0) return false; go("subB", .6, 9); startSub(F, f, o, pick(rng, SUBS_BOT)); return true; }
+    if (name === "kick") { if (G.pos > 1 || f.stam < 8 || f.subCd > 0) return false; go("subB", .6, 9); G.last = G.t; startSub(F, f, o, pick(rng, G.pos ? ["Kimura", "Guillotine Choke"] : SUBS_BOT)); return true; }
     if (name === "slip") {
+      // recover: back -> mount... no: back -> side control, mount -> half guard, side control -> half guard, half guard -> guard
       if (G.pos <= 0) return false;
       go("rg", .8, 6);
-      if (rng() < sig(-.6 + .9 * (f.z.scramble - o.z.control))) { G.pos--; F.say(f.side, "GUARD BACK", "#7fb4ff"); newEsc(F); }
+      if (rng() < sig(-.6 + .9 * (f.z.scramble - o.z.control) - .15 * G.pos + (o.stam < 30 ? .4 : 0))) { G.pos = G.pos >= 4 ? 2 : G.pos >= 2 ? 1 : 0; moved(f, G.pos ? "HALF GUARD" : "GUARD BACK", "#7fb4ff"); G.ref = Math.max(0, G.ref - 20); }
+      else G.last = G.t;
+      return true;
+    }
+    if (name === "sweep") {
+      // from guard or half guard: reverse him and land on top (half guard)
+      if (G.pos > 1) return false;
+      go("esc", .9, 8);
+      if (rng() < sig(-1.35 + .9 * (f.z.scramble + .5 * f.z.wrestle - o.z.control) + (f.stam - o.stam) / 50 - .3 * G.pos + (o.blockHeld ? .4 : 0))) {
+        F.tal(f, "sweeps"); endGround(F, null); startGround(F, f, o, 1, F.log(f.side, `${f.name} sweeps ${short(o.name)} and lands on top`));
+        F.say(f.side, "SWEEP!", "#ffb547", true); F.emit("td", { side: f.side });
+      } else { G.last = G.t; F.say(o.side, "STAYS ON TOP", "#93a0b4"); }
+      return true;
+    }
+    if (name === "getup") {
+      // wall-walk / technical stand-up: guard, half guard or side control; easier near the fence, harder the worse the spot
+      if (G.pos > 2) return false;
+      go("esc", .9, 9);
+      const fence = Math.min(f.x - F.L.lo, F.L.hi - f.x) < 90 ? .4 : 0;
+      if (rng() < sig(-1.6 + .8 * (f.z.scramble + .4 * f.z.wrestle - o.z.control) - .5 * G.pos + fence + (f.stam - o.stam) / 60)) { F.tal(f, "getups"); endGround(F, "escape"); F.say(f.side, "BACK UP!", "#7fb4ff"); }
+      else { G.last = G.t; F.say(o.side, "HELD DOWN", "#93a0b4"); }
       return true;
     }
     return false;
@@ -3032,7 +3079,7 @@ void main(){
   function startSub(F, a, d, name) {
     const G = F.g, rng = F.rng;
     a.st.subA++; F.tal(a, "subAtt");
-    const edge = .04 * (a.z.subs - d.z.scramble) + .04 * (G && G.top === a ? G.pos : -1) + .1 * (1 - d.stam / 100);
+    const edge = .04 * (a.z.subs - d.z.scramble) + (G && G.top === a ? SUB_E[G.pos] : -.04) + .1 * (1 - d.stam / 100);
     const role = a.human ? "att" : d.human ? "def" : null;
     F.m = {
       a, d, name, stage: 0, need: 3, esc: 0, escNeed: 2, miss: 0, n: rng(), dir: 1, t: 0, tick: 1.2,
@@ -3364,13 +3411,16 @@ void main(){
   function stepGround(F, dt) {
     const G = F.g; G.t += dt;
     G.top.st.ctrl += dt * 300 / F.roundLen;
-    G.top.x = G.bot.x + G.bot.dir * [58, 44, 16][G.pos];
+    if (G.pos >= 4) { G.bot.dir = -G.face; G.top.x = G.bot.x + G.face * GAP_G[4]; }   // the back: he's turned away, the top man behind him
+    else { G.bot.dir = G.face; G.top.x = G.bot.x + G.face * GAP_G[G.pos]; }
+    G.top.dir = -G.face;
+    G.ref = Math.max(0, G.ref - dt * (G.bot.blockHeld ? 16 : 10));
     for (const f of [G.top, G.bot]) { f.depth *= Math.exp(-dt * 10); if (f.act && f.act.t >= f.act.dur) f.act = null; }
     if (F.m) { stepMeter(F, dt); return; }
     const E = G.E;
     E.cool = Math.max(0, E.cool - dt); E.flash = Math.max(0, E.flash - dt);
     E.n += E.dir * E.speed * dt; if (E.n > 1) { E.n = 2 - E.n; E.dir = -1; } if (E.n < 0) { E.n = -E.n; E.dir = 1; }
-    if (G.t > G.max) endGround(F, "ref");
+    if (G.t > G.max || G.t - G.last > G.idle) endGround(F, "ref");
   }
 
   // ------------------------------------------------------------------ AI
@@ -3395,8 +3445,8 @@ void main(){
     };
     let comboP = clamp(.22 + .12 * v + .05 * z.iq, .08, .6), counter = clamp(.15 + .12 * z.sdef + .08 * z.iq, 0, .6), slipLove = clamp(.3 + .1 * z.sdef, .1, .7), rollLove = clamp(.18 + .08 * z.sdef, .05, .45);
     let restMin = clamp(.6 - .12 * v + .06 * z.iq, .2, .85), bounceL = clamp(.55 + .15 * z.iq - .1 * v, .2, .9), dashIn = clamp(.15 + .12 * v + .08 * z.cardio, 0, .7), pivotL = clamp(.3 + .2 * z.iq + .1 * z.sdef, .1, .9), switchy = clamp(.03 + .1 * k, 0, .4), retreatL = 0;
-    const g = { gp: 1 + .4 * z.control, pass: .45 + .35 * z.control, sub: Math.max(.04, .06 + .3 * z.subs), up: Math.max(0, .1 + .12 * (ss.str - ss.grp) / 10) };
-    const b = { bs: .5, sub: Math.max(.03, .05 + .3 * z.subs), rg: .6 + .3 * z.scramble, wait: .8 };
+    const g = { gp: 1 + .4 * z.control, pass: .45 + .35 * z.control, back: Math.max(.05, .25 + .25 * z.control + .2 * z.subs), sub: Math.max(.04, .06 + .3 * z.subs), up: Math.max(0, .1 + .12 * (ss.str - ss.grp) / 10) };
+    const b = { bs: .5, sub: Math.max(.03, .05 + .3 * z.subs), rg: .6 + .3 * z.scramble, sweep: Math.max(.05, .2 + .25 * z.scramble + .15 * z.wrestle), getup: Math.max(.04, .15 + .2 * z.scramble + .08 * (ss.str - ss.grp) / 10), wait: .8 };
     const cl = { dirty: .8 + .2 * v, elbow: .45 + .25 * pw, knee: .6 + .25 * z.control + .1 * k, kneeh: .2 + .2 * pw, ctd: Math.max(.05, .15 + .45 * z.wrestle), brk: Math.max(.08, .25 + .3 * (ss.str - ss.grp) / 10) };
     switch (arch) {
       case "Pressure Striker": bounceL *= .4; restMin *= .5; aggr += .3; W.jab *= 1.3; W.bhook *= 1.5; comboP += .2; dashIn += .3; counter *= .5; break;
@@ -3583,11 +3633,13 @@ void main(){
         if (o.act && (o.act.type === "gp" || o.act.type === "gel") && o.act.t < .05 && rng() < D.def) { f.blockHeld = true; A.blockT = .45; }
         if (A.dec > 0) return;
         A.dec = (.5 + rng() * .45) / D.rate;
-        const ww = Object.assign({}, b); if (G.pos > 0 || f.subCd > 0) ww.sub = 0; if (G.pos === 0) ww.rg = 0;
+        const ww = Object.assign({}, b); if (G.pos > 1 || f.subCd > 0) ww.sub = 0; if (G.pos === 0) ww.rg = 0; if (G.pos > 1) ww.sweep = 0; if (G.pos > 2) ww.getup = 0;
+        if (G.pos >= 3) ww.rg *= 2.2;   // mounted / back taken: get out of there first
+        if (G.ref > 55) { ww.rg *= 1.6; ww.wait = 0; f.blockHeld = true; A.blockT = .5; }
         const c = pickW(rng, ww);
         if (c === "wait") return;
         f.blockHeld = false;
-        cmd(F, side, c === "sub" ? "kick" : c === "rg" ? "slip" : "jab");
+        cmd(F, side, c === "sub" ? "kick" : c === "rg" ? "slip" : c === "sweep" ? "sweep" : c === "getup" ? "getup" : "jab");
       } else {
         // top: posture when his needle is about to reach the zone, otherwise work
         const [z0, z1] = escZone(G), near = Math.min(Math.abs(E.n - z0), Math.abs(E.n - z1)) < .12 || (E.n > z0 && E.n < z1);
@@ -3595,9 +3647,10 @@ void main(){
         if (A.dec > 0 || f.blockHeld) return;
         A.dec = (.4 + rng() * .32) / D.rate;
         if (f.stam < 10) { f.blockHeld = true; A.blockT = .5; return; }
-        const ww = Object.assign({}, g); if (G.pos >= 2) ww.pass = 0; ww.sub *= 1 + .5 * G.pos; if (G.t < 1.2) ww.sub *= .3; if (f.subCd > 0) ww.sub = 0; if (o.rocked > 0) { ww.gp *= 3; ww.sub *= .3; }
+        const ww = Object.assign({}, g); if (G.pos >= 3) ww.pass = 0; if (G.pos < 2 || G.pos >= 4) ww.back = 0; ww.sub *= 1 + .35 * G.pos; if (G.t < 1.2) ww.sub *= .3; if (f.subCd > 0) ww.sub = 0; if (o.rocked > 0 || G.ref > 50) { ww.gp *= 3; ww.sub *= .3; }
+        ww.gp *= GNP_M[G.pos];
         const c = pickW(rng, ww);
-        cmd(F, side, c === "gp" ? "gnp" : c === "pass" ? "slip" : c === "sub" ? "kick" : "td");
+        cmd(F, side, c === "gp" ? (G.pos >= 2 && rng() < .3 ? "cross" : "gnp") : c === "pass" ? "slip" : c === "back" ? "back" : c === "sub" ? "kick" : "td");
       }
     }
     return A;
@@ -3683,6 +3736,9 @@ void main(){
     out: { t: -180, hd: -18, la: [178, 176], ra: [172, 182], ll: [-6, 8], rl: [2, 4] },
     top: { t: -56, hd: 6, la: [30, -62], ra: [50, -56], ll: [78, 178], rl: [100, 182] },
     mount: { t: -78, hd: 6, la: [40, -42], ra: [60, -30], ll: [44, 160], rl: [136, 22] },
+    side: { t: -14, hd: 26, la: [84, 30], ra: [104, 10], ll: [142, 178], rl: [160, 186] },
+    backT: { t: -68, hd: 10, la: [12, 50], ra: [24, 70], ll: [22, 84], rl: [36, 96] },
+    backB: { t: -62, hd: 8, la: [44, 84], ra: [62, 100], ll: [4, 12], rl: [14, 22] },
     gp: { t: -34, hd: 12, la: [60, -40], ra: [28, 70], ll: [78, 178], rl: [100, 182] },
     gel: { t: -24, hd: 16, la: [60, -40], ra: [-50, 110], ll: [78, 178], rl: [100, 182] },
     subT: { t: -30, hd: 22, la: [62, 150], ra: [72, 162], ll: [70, 176], rl: [104, 180] },
@@ -3711,12 +3767,13 @@ void main(){
     if (f.mode === "top") {
       if (F.m && F.m.a === f) return ["subT", 10];
       if (a && P[a.type]) return [a.type, a.t < a.win ? 32 : 12];
-      return [F.g && F.g.pos === 2 ? "mount" : "top", 10];
+      return [F.g ? ["top", "top", "side", "mount", "backT"][F.g.pos] : "top", 10];
     }
     if (f.mode === "bot") {
       if (F.m && F.m.a === f) return ["subB", 10];
       if (F.m && F.m.d === f) return ["cover", 10];
       if (a && (a.type === "esc" || a.type === "bs") && a.t < .3) return [a.type, 22];
+      if (F.g && F.g.pos >= 4) return ["backB", 10];
       if (f.blockHeld) return ["cover", 16];
       return ["bot", 10];
     }
@@ -4054,9 +4111,9 @@ void main(){
       ctx.fillStyle = "#ef5a5a"; roundRect(ctx, bx + lw, cy + 10, Math.max(0, (bl - lw) * clamp(D.ref, 0, 100) / 100), 9, 4); ctx.fill();
     } else if (F.g) {
       const G = F.g, E = G.E, mineTop = G.top === me, mineBot = G.bot === me, bw = Math.min(w * .84, 420), x0 = (w - bw) / 2, y0 = 40;
-      ctx.fillStyle = "rgba(10,15,24,.86)"; roundRect(ctx, x0 - 10, y0 - 30, bw + 20, 72, 12); ctx.fill();
+      ctx.fillStyle = "rgba(10,15,24,.86)"; roundRect(ctx, x0 - 10, y0 - 30, bw + 20, 96, 12); ctx.fill();
       ctx.font = font(800, 16); ctx.fillStyle = mineTop ? "#ffb547" : "#7fb4ff";
-      const tries = mineBot ? [`ON YOUR BACK · ${POSN[G.pos].toUpperCase()} · ESCAPE: TAP IN THE TEAL`, "ESCAPE: TAP LEFT IN THE TEAL", "TAP IN THE TEAL"] : mineTop ? [`ON TOP · ${POSN[G.pos].toUpperCase()} · HOLD LEFT TO POSTURE`, "ON TOP · HOLD LEFT: POSTURE", "ON TOP"] : [POSN[G.pos].toUpperCase()];
+      const tries = mineBot ? [`${G.pos >= 4 ? "BACK TAKEN" : "ON YOUR BACK · " + POSN[G.pos].toUpperCase()} · TAP IN THE TEAL TO ESCAPE`, "TAP LEFT IN THE TEAL TO ESCAPE", "TAP IN THE TEAL"] : mineTop ? [`ON TOP · ${POSN[G.pos].toUpperCase()} · ${G.pos < 3 ? "SWIPE ↑ TO PASS" : G.pos === 3 ? "POUND OR ← → TAKE THE BACK" : "POUND OR ↑ SUB"}`, `ON TOP · ${POSN[G.pos].toUpperCase()}`, "ON TOP"] : [POSN[G.pos].toUpperCase()];
       let ttl = tries[tries.length - 1]; for (const t of tries) if (ctx.measureText(t).width <= bw) { ttl = t; break; }
       ctx.fillText(ttl, w / 2, y0 - 15);
       const [z0, z1] = escZone(G), by = y0 + 2, bh = 16;
@@ -4065,7 +4122,14 @@ void main(){
       if (!F.m) { const nx = x0 + E.n * bw; ctx.fillStyle = E.flash > 0 ? (E.last === "hit" ? "#3fcf8e" : "#ef5a5a") : "#fff"; ctx.fillRect(nx - 2.5, by - 4, 5, bh + 8); }
       for (let i = 0; i < E.need; i++) { ctx.fillStyle = i < E.prog ? "#2fe6d8" : "#2a3548"; ctx.beginPath(); ctx.arc(x0 + bw - 8 - i * 16, by + bh + 12, 5, 0, Math.PI * 2); ctx.fill(); }
       ctx.font = dataFont(12); ctx.textAlign = "left"; ctx.fillStyle = "#93a0b4"; ctx.fillText(mineTop ? "his escape" : "escape", x0, by + bh + 12);
-      ctx.textAlign = "right"; const left = Math.max(0, G.max - G.t); ctx.fillText(`stand-up in ${left.toFixed(0)}s`, x0 + bw - 46, by + bh + 12); ctx.textAlign = "center";
+      ctx.textAlign = "right"; const left = Math.max(0, Math.min(G.max - G.t, G.idle - (G.t - G.last))); ctx.fillText(left < 2.5 ? `stand-up in ${left.toFixed(0)}s · do something!` : `ref watching`, x0 + bw - 46, by + bh + 12); ctx.textAlign = "center";
+      // the position ladder (guard → half → side → mount, back) and the referee's stoppage bar
+      const ly = by + bh + 34, seg = bw * .56 / POSN.length;
+      POSN.forEach((pn, i) => { const on = i === G.pos; ctx.fillStyle = on ? (mineBot ? "#ef5a5a" : "#ffb547") : "#2a3548"; roundRect(ctx, x0 + i * seg, ly - 7, seg - 4, 14, 4); ctx.fill(); ctx.font = dataFont(10); ctx.fillStyle = on ? "#0b111b" : "#93a0b4"; ctx.fillText(["GRD", "HALF", "SIDE", "MNT", "BACK"][i], x0 + i * seg + (seg - 4) / 2, ly + 1); });
+      const rx = x0 + bw * .6, rw = bw * .4;
+      ctx.font = dataFont(10); ctx.textAlign = "left"; ctx.fillStyle = G.ref > 60 ? "#ef5a5a" : "#93a0b4"; ctx.fillText("REF", rx, ly + 1); ctx.textAlign = "center";
+      ctx.fillStyle = "#06090f"; roundRect(ctx, rx + 24, ly - 5, rw - 24, 10, 4); ctx.fill();
+      if (G.ref > 0) { ctx.fillStyle = G.ref > 60 ? "#ef5a5a" : "#ffb547"; roundRect(ctx, rx + 24, ly - 5, Math.max(4, (rw - 24) * clamp(G.ref, 0, 100) / 100), 10, 4); ctx.fill(); }
     } else if (F.fx.some(e => e.k === "txt" && e.big)) {
       // a big call-out is on screen: the banner comes back when it has gone
     } else if (F.c) {
@@ -4152,8 +4216,8 @@ void main(){
     ["Get up", "Knocked down: tap on the pulse (not fast). Up before ten or it's over", "Any key, on the pulse"],
     ["Feint / switch stance", "Feint and Switch chips", "F / E or ↓"],
     ["Clinch", "Right: tap knees, hold elbow, ↑ head knee · Left: hold frame, tap break · Grapple: trip", "J K L ; G W S"],
-    ["Ground, on top", "Right: tap ground and pound, ↑ submission · Left: hold posture (shrinks his escape zone), swipe toward him to pass, away to let up", "J K L G W S"],
-    ["Ground, on your back", "Left: tap when the needle is in the teal to escape (twice), hold cover, swipe ↑ recover guard · Right: tap strike, ↑ submission", "G W J L"],
+    ["Ground, on top", "Positions: guard → half guard → side control → mount, and the back. Left: ↑ pass, ← → take the back (from side or mount), ↓ let him up, hold posture. Right: tap punches, hold elbows, ↑ submission (each position has its own). Unanswered ground and pound fills the REF bar: full = TKO", "G pass · Q back · J K L"],
+    ["Ground, on your back", "Left: tap when the needle is in the teal to escape (twice; three times with your back taken), ↑ recover guard, ← → sweep (guard / half guard), ↓ stand up (easier near the fence), hold to cover (slows the REF bar). Right: tap strike, ↑ submission (guard / half guard)", "G W · Q sweep · E stand up · J L"],
     ["Watch for his tell", "A badge over his head says where it lands and the answer: ▲ slip/block · ● block · ▼ block (check) · ⇊ sprawl", "—"],
     ["Pause / moves / layout / sound", "❚❚ · ? · Controls: Punch & kick, Gestures or Classic", "P or Esc"]
   ];
@@ -4631,7 +4695,7 @@ void main(){
         return;
       }
       if (Math.hypot(dx, dy) < 24) return;
-      if (st.z === "L" && ctxName() === "stand") { swipeFire(st, e, footDir(dx, dy), e.pointerId); return; }
+      if (st.z === "L" && ["stand", "top", "bot"].includes(ctxName())) { swipeFire(st, e, footDir(dx, dy), e.pointerId); return; }
       let g = swipeDir(dx, dy);
       if (g === "down" && (st.z !== "L" || ctxName() !== "stand")) g = null;
       if (!g) { if (!st.ign) { st.ign = 1; dbg(st.z, "swipe ↓", null); } return; }
@@ -4664,7 +4728,7 @@ void main(){
         return;
       }
       // a short, quick flick still counts as a swipe
-      if (e.type === "pointerup" && Math.hypot(dx, dy) >= 14 && dur < 260) { let g = st.z === "L" && ctxName() === "stand" ? footDir(dx, dy) : swipeDir(dx, dy); if (g === "down" && (st.z !== "L" || ctxName() !== "stand")) g = null; if (g) { if (g === "up" && st.z === "R" && st.armed) g = "holdUp"; swipeFire(st, e, g, e.pointerId); return; } }
+      if (e.type === "pointerup" && Math.hypot(dx, dy) >= 14 && dur < 260) { let g = st.z === "L" && ["stand", "top", "bot"].includes(ctxName()) ? footDir(dx, dy) : swipeDir(dx, dy); if (g === "down" && (st.z !== "L" || ctxName() !== "stand")) g = null; if (g) { if (g === "up" && st.z === "R" && st.armed) g = "holdUp"; swipeFire(st, e, g, e.pointerId); return; } }
       if (st.z === "L") { holdOff(e.pointerId); if (e.type === "pointerup" && dur < 220 && ctxName() === "downA") zoneFire("L", "tap", st.el); }
       else if (e.type === "pointerup") zoneFire("R", st.armed ? "hold" : "tap", st.el);
     };
@@ -4716,8 +4780,8 @@ void main(){
       if (c === "meter") return { L: ["TAP!", [["tap", "when the needle is in the zone"]]], R: ["TAP!", [["tap", "when the needle is in the zone"]]], coach: "Submission: tap anywhere when the needle is in the zone" };
       if (c === "downV") return { L: ["GET UP!", [["tap", "on the pulse"]]], R: ["GET UP!", [["tap", "on the pulse"]]], coach: "You're down: tap in rhythm, when the ring closes on the dot. Not fast" };
       if (c === "downA") return { L: ["BACK OFF", [["tap", "let him up"]]], R: ["POUND", [["tap", "punch"], ["hold", "hammer"]]], coach: "He's down: tap Right to pound him before he beats the count" };
-      if (c === "top") return { L: ["POSTURE", [["hold", "posture"], [fw, "pass"], [bk, "let him up"]]], R: ["POUND", [["tap", "ground & pound"], ["↑", "submission"]]], coach: "Top: Right tap pound · ↑ sub | Left hold posture when his needle nears the teal" };
-      if (c === "bot") return { L: ["ESCAPE", [["tap", "in the teal"], ["hold", "cover"], ["↑", "recover guard"]]], R: ["STRIKE", [["tap", "strike"], ["↑", F.g && F.g.pos > 0 ? "sub (guard only)" : "submission"]]], coach: "Bottom: tap Left when the needle is in the teal (twice) to escape" };
+      if (c === "top") { const G = F.g; return { L: ["CONTROL", [["↑", G.pos < 3 ? "pass" : "—"], ["← →", G.pos === 2 || G.pos === 3 ? "take back" : "—"], ["↓", "let him up"], ["hold", "posture"]]], R: ["POUND", [["tap", "punches"], ["hold", "elbow"], ["↑", "submission"]]], coach: `Top · ${POSN[G.pos]}: ↑ pass, ← → back, hold right for elbows. Fill the REF bar for the stoppage` }; }
+      if (c === "bot") { const G = F.g; return { L: ["ESCAPE", [["tap", "in the teal"], ["↑", G.pos ? "recover guard" : "—"], ["← →", G.pos <= 1 ? "sweep" : "—"], ["↓", G.pos <= 2 ? "stand up" : "—"], ["hold", "cover"]]], R: ["STRIKE", [["tap", "strike"], ["↑", G.pos <= 1 ? "submission" : "—"]]], coach: G.pos >= 3 ? "Bad spot: ↑ to recover, tap in the teal, hold to cover if the REF bar climbs" : "Bottom: ← → sweep, ↓ stand up (easier by the fence), tap in the teal to escape" }; }
       if (c === "clinch") { const fh = F.c && F.c.fhl && F.c.dom !== me; return { L: [fh ? "FIGHT OUT" : "FRAME", [["hold", "frame"], ["tap", "break away"]]], R: fh ? ["—", [["", "caught: tap Left"]]] : ["KNEES", [["tap", "knee / short"], ["hold", "elbow"], ["↑", "head knee"]]], coach: fh ? "Front headlock: tap Left to fight out" : "Clinch: Right tap knees · hold elbow · ↑ head knee | Left tap break | Grapple trip" }; }
       const ready = me.perfectT > 0;
       return {
@@ -5280,7 +5344,7 @@ void main(){
     };
   }
 
-  window.MMAArcade = { start, version: "3.5.1", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
+  window.MMAArcade = { start, version: "3.6", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
 })();
 </script>
 <script>
