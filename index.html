@@ -2125,7 +2125,7 @@ void main(){
   // strike costs more; stepping back takes some off both; a side step makes straight shots miss more often
   const stepIn = f => !!(f.gs && f.gs.adv && f.gs.adv === f.dir);
   // footwork: one step's travel (x his size), the plant between steps, and the push-off / land shape (area 1 over a step)
-  const STRIDE = 40, PLANT = .08, gaitProf = u => Math.PI / 2 * Math.sin(Math.PI * clamp(u, 0, 1));
+  const STRIDE = 46, PLANT = .1, gaitProf = u => Math.PI / 2 * Math.sin(Math.PI * clamp(u, 0, 1));
   const HOOKS = ["lhook", "rhook", "bhook", "upper"], ROLLW = ["lhook", "rhook", "overhand", "headk", "sbf", "shk", "bomb"];
   const SUPN = { shk: "Spinning heel kick", bomb: "Overhand bomb", fknee: "Flying knee", slam: "Double-leg slam", flash: "Flash submission" };
   const SUPS = { shk: "HEEL KICK", bomb: "BOMB", fknee: "FLY KNEE", slam: "SLAM", flash: "FLASH SUB" };
@@ -2493,7 +2493,7 @@ void main(){
       a = { type: "roll", win: 0, dur: .44, cost: 3.2 };
     } else if (type === "feint") a = { type: "feint", win: .2, dur: .26, cost: 2 };
     else if (type === "switch") { a = { type: "switch", win: 0, dur: .18, cost: 2 }; f.stance *= -1; f.switchT = .5; F.tal(f, "switch"); F.say(f.side, f.stance === 1 ? "ORTHODOX" : "SOUTHPAW", "#93a0b4"); }
-    else if (type === "stepB") a = { type: "dash", dir: -1, win: 0, dur: .14, cost: STEP_COST, step: true };   // the bounce out
+    else if (type === "stepB") a = { type: "dash", dir: -1, win: 0, dur: .24, cost: STEP_COST, step: true, base: 300 };   // the bounce out: a calm step back
     else if (type === "dashF" || type === "dashB") {
       const fwd = type === "dashF";
       if (!fwd && pinned(f)) { f.stam = Math.max(0, f.stam - 1); F.say(f.side, "PINNED", "#ef5a5a"); return false; }
@@ -3191,7 +3191,7 @@ void main(){
           if (adv || lat) {
             const back = adv === -f.dir, sp = f.k.speed * (f.blocking ? .55 : 1) * (1 - f.dmg.leg / 190) * (.7 + .3 * stamF(f)) * (back ? .92 : 1) * (f.rocked > 0 ? .6 : 1);
             const len = STRIDE * f.k.size * (adv ? 1 : .8) * (back ? .9 : 1);
-            f.gs = { adv, lat: lat ? Math.sign(lat) * clamp(Math.abs(lat) / .6, .5, 1) * (adv ? .7 : 1) : 0, len, t: 0, dur: clamp(len / (sp * 1.2), .14, .42), back, m: same ? .35 : 1 };
+            f.gs = { adv, lat: lat ? Math.sign(lat) * clamp(Math.abs(lat) / .6, .5, 1) * (adv ? .7 : 1) : 0, len, t: 0, dur: clamp(len / (sp * .66), .3, .7), back, m: same ? .35 : 1 };
           }
         }
       }
@@ -3203,7 +3203,7 @@ void main(){
       // the seams between steps (rest -> step -> rhythm -> stop) are smoothed over ~50 ms: weight, not a judder
       f.vw = (f.vw || 0) + (v - (f.vw || 0)) * (1 - Math.exp(-dt * 20)); v = Math.abs(f.vw) < 1 && !v ? 0 : f.vw;
       f.lvS = (f.lvS || 0) + ((f.lvStep || 0) - (f.lvS || 0)) * (1 - Math.exp(-dt * 20)); f.lvStep = Math.abs(f.lvS) < 1 && !f.lvStep ? 0 : f.lvS;
-      if (a && a.type === "dash") v = a.dir * f.dir * (a.dir > 0 ? 560 : 500) * (1 - f.dmg.leg / 260) * gaitProf(a.t / a.dur);
+      if (a && a.type === "dash") v = a.dir * f.dir * (a.base || (a.dir > 0 ? 560 : 500)) * (1 - f.dmg.leg / 260) * gaitProf(a.t / a.dur);
       if (a && a.type === "td" && !a.done && a.t >= (a.tele || 0)) v = f.dir * 230;
       if (a && a.type === "fknee" && !a.done && a.t >= a.tele) v = f.dir * 170;
       if (a && ST[a.type] && ST[a.type].r === "p" && !a.done) v += f.dir * 40;
@@ -4923,7 +4923,7 @@ void main(){
       // a dash (the step-in to strike, the bounce out, a full dash): one step too, sized to how far the dash carries him
       const da = f.act && f.act.type === "dash" ? f.act : null;
       if (da && force && Object.prototype.hasOwnProperty.call(f, "gs") && cF) {
-        const gg = (cF.travel || 1) * f.k.size * 90 / (cF.leg || 90), len = (da.dir > 0 ? 560 : 500) * (1 - f.dmg.leg / 260) * da.dur;
+        const gg = (cF.travel || 1) * f.k.size * 90 / (cF.leg || 90), len = (da.base || (da.dir > 0 ? 560 : 500)) * (1 - f.dmg.leg / 260) * da.dur;
         const ut = (1 - Math.cos(Math.PI * clamp(da.t / da.dur, 0, 1))) / 2;
         T.gk = "stepF"; T.gt = mcProg(cF, da.dir < 0 ? 1 - ut : ut); T.gsx = clamp(len / gg, .15, 1.2); T.gw = 1; T.gp = 0; T.lk = "stepF";
         return { k: "stepF", t: T.gt, w: 1, sx: T.gsx };
@@ -5161,7 +5161,7 @@ void main(){
     };
   }
 
-  window.MMAArcade = { start, version: "3.3.1", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
+  window.MMAArcade = { start, version: "3.3.2", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
 })();
 </script>
 <script>
