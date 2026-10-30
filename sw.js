@@ -1,6 +1,6 @@
 /* Skill Spin MMA offline cache. The page is checked online first (so updates show straight away) and falls back to
    the copy on this phone when there's no signal (or after 4 s on a weak one). */
-const V = "25c0167047", CORE = "mma-core-" + V, FILES = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
+const V = "6833720a23", CORE = "mma-core-" + V, FILES = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 self.addEventListener("install", e => e.waitUntil(caches.open(CORE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil((async () => { for (const k of await caches.keys()) if (k.startsWith("mma-core-") && k !== CORE) await caches.delete(k); await self.clients.claim(); })()));
 self.addEventListener("fetch", e => {
