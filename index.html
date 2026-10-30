@@ -1668,6 +1668,7 @@ void main(){
     if (lo < 4) for (const n in out) if (n !== "hf") out[n][1] += 4 - lo;
     return out;
   }
+  const LOWER = ["hip", "lhip", "rhip", "lkn", "lft", "rkn", "rft"];
   const MC_BLEND = ["hip", "neck", "head", "lsh", "rsh", "lel", "lha", "rel", "rha", "lhip", "rhip", "lkn", "lft", "rkn", "rft", "hf"];
   // ------------------------------------------------------------------ the renderer
   function create(canvas, opts) {
@@ -1829,7 +1830,9 @@ void main(){
         R = mcRig(D, st, st.mc); key = st.mc.k + ":" + (st.mc.id || 0);
         // a second clip blended over the first (the footwork steps over the stance, by speed)
         const B = st.mc.blend;
-        if (B && B.w > .001 && D.clips[B.k]) { const R2 = mcRig(D, st, B), w = Math.min(1, B.w); for (const n of MC_BLEND) { const a = R[n], b = R2[n]; if (a && b) R[n] = [a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w, a[2] + (b[2] - a[2]) * w]; } }
+        if (B && B.w > .001 && D.clips[B.k]) {
+          const R2 = mcRig(D, st, B), w = Math.min(1, B.w);
+          if (B.sx && Math.abs(B.sx - 1) > .02) { const R0 = mcRig(D, st, { k: B.k, t: 0 }); for (const n of LOWER) { const a = R2[n], b = R0[n]; if (a && b) R2[n] = [b[0] + (a[0] - b[0]) * B.sx, b[1] + (a[1] - b[1]) * Math.min(1, .5 + .5 * B.sx), b[2] + (a[2] - b[2]) * B.sx]; } } for (const n of MC_BLEND) { const a = R[n], b = R2[n]; if (a && b) R[n] = [a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w, a[2] + (b[2] - a[2]) * w]; } }
       }
       else { R = rig(st, st.J, st.sc); R.hf = [1, 0, 0]; key = "hand"; }
       if (F2.key !== key) { if (F2.last) { F2.from = F2.last; F2.t = 0; F2.dur = (st.mc && st.mc.fade) || .1; } F2.key = key; }
@@ -2118,6 +2121,11 @@ void main(){
     bomb: { win: .22, rec: .46, cost: 9, acc: .58, dmg: 6.4, pool: "head", kd: 0, stun: .5, r: "p", rm: 1.06, pw: .3, fx: 4, nm: "overhand bomb", code: "BOMB", hk: "hit", slip: 1, sup: 1 },
     fknee: { win: .2, rec: .5, cost: 9, acc: .58, dmg: 6.2, pool: "head", kd: 0, stun: .5, r: "p", rm: 1.3, pw: .22, fx: 4, nm: "flying knee", code: "FK", hk: "hitU", anti: 1, sup: 1 }
   };
+  // a step forward (toward him) under way: a strike off it carries a little more reach and weight; walking onto his
+  // strike costs more; stepping back takes some off both; a side step makes straight shots miss more often
+  const stepIn = f => !!(f.gs && f.gs.adv && f.gs.adv === f.dir);
+  // footwork: one step's travel (x his size), the plant between steps, and the push-off / land shape (area 1 over a step)
+  const STRIDE = 40, PLANT = .08, gaitProf = u => Math.PI / 2 * Math.sin(Math.PI * clamp(u, 0, 1));
   const HOOKS = ["lhook", "rhook", "bhook", "upper"], ROLLW = ["lhook", "rhook", "overhand", "headk", "sbf", "shk", "bomb"];
   const SUPN = { shk: "Spinning heel kick", bomb: "Overhand bomb", fknee: "Flying knee", slam: "Double-leg slam", flash: "Flash submission" };
   const SUPS = { shk: "HEEL KICK", bomb: "BOMB", fknee: "FLY KNEE", slam: "SLAM", flash: "FLASH SUB" };
@@ -2391,8 +2399,8 @@ void main(){
     if (f.autoHold > 0 || f.act || f.stun > 0) { f.move = 0; return; }
     const d = Math.abs(o.x - f.x), toward = o.x >= f.x ? 1 : -1, room = backRoom(f);
     const want = o.rocked > 0 && f.stam > 15 ? f.k.reachP * .85 : outside(f, o) + (f.stam < 25 ? 18 : 0) + (f.blockHeld ? 8 : 0);   // he's hurt: walk him down
-    if (d > want + 14) f.move = toward;
-    else if (d < want - 10 && room > 80 && !inExchange(F, f, o)) { f.move = -toward; if (d < want - 34) bounceOut(F, f, o); }
+    if (d > want + 26) f.move = toward;
+    else if (d < want - 12 && room > 80 && !inExchange(F, f, o)) { f.move = -toward; if (d < want - 36) bounceOut(F, f, o); }
     else f.move = 0;
     if (room < 80 && room > 26 && f.pivCd <= 0 && f.stam > 18 && (o.move === o.dir || d < want + 10)) { f.pivCd = 2.6; startAct(F, f, o, "pivotU"); }
   }
@@ -2539,7 +2547,7 @@ void main(){
     if (clinch) { if (o.mode !== "clinch") return whiff(.2); }
     else if (sure) { const reach = (s.r === "k" ? f.k.reachK : f.k.reachP) * s.rm + 30; if (Math.abs(o.x - f.x) > reach + 8 || o.mode !== "stand") { whiff(.3); return; } }
     else {
-      const reach = (s.r === "k" ? f.k.reachK : f.k.reachP) * s.rm + (f.dashT > 0 && s.r === "p" ? 28 : 0), d = Math.abs(o.x - f.x);
+      const reach = (s.r === "k" ? f.k.reachK : f.k.reachP) * s.rm + (f.dashT > 0 && s.r === "p" ? 28 : 0) + (stepIn(f) ? 8 : 0), d = Math.abs(o.x - f.x);
       if (d > reach + 8 || o.mode !== "stand") {
         whiff(.38); F.fx[F.fx.length - 1].x = f.x + f.dir * reach * .8;
         if (o.pullT > 0 && o.mode === "stand" && !s.sup && d < reach + 90) { o.pullT = 0; o.counterT = Math.max(o.counterT, clamp(.6 + .08 * o.z.iq, .45, .8)); f.whiff = Math.max(f.whiff, .45); F.tal(o, "pulls"); F.say(o.side, "MADE HIM MISS!", "#2fe6d8"); F.emit("pull", { side: o.side }); }
@@ -2598,7 +2606,8 @@ void main(){
       + (counter ? .22 : 0) + (o.stun > 0 ? .15 : 0) + committed + cmbAcc + stAcc + (o.baited > 0 ? .15 : 0) + (f.angleT > 0 ? .1 : 0) + (!clinch && pinned(o) ? .06 : 0)
       + (o.rocked > 0 ? .18 : 0) - (f.rocked > 0 ? .1 : 0)
       - (o.pivI > 0 && straight ? .3 : 0) - (cover ? (s.pool === "head" ? .25 : .1) : 0) + (s.anti && o.slipI > 0 ? .25 * s.anti : 0) + (o.slipI > 0 && !s.anti && s.pool === "head" ? -.2 : 0)
-      + (o.rollI > 0 ? (s.anti >= 1 ? .3 : s.pool === "body" ? .08 : 0) : 0) + (a.flow > 0 ? .035 : a.flow < 0 ? -.06 : 0), .08, .93);
+      + (o.rollI > 0 ? (s.anti >= 1 ? .3 : s.pool === "body" ? .08 : 0) : 0) + (a.flow > 0 ? .035 : a.flow < 0 ? -.06 : 0)
+      + (!clinch && o.gs && o.gs.lat && !o.gs.adv && straight ? -.08 : 0) + (!clinch && stepIn(o) ? .05 : 0), .08, .93);
     if (rng() >= p) return whiff(.22);
     // landed
     refund(f, a, .35);
@@ -2606,7 +2615,7 @@ void main(){
     const dashingIn = o.act && o.act.type === "dash" && o.act.dir > 0 && !o.act.step;   // a full dash in, not the short step-in to strike
     let dmg = s.dmg * powM * stamF(f) * (sure ? 1.6 : counter ? 1.45 : 1) * (o.stun > 0 ? 1.1 : 1) * (1 + cmbDmg) * (1 + stDmg) * (o.baited > 0 ? 1.1 : 1) * (fhl ? 1.2 : 1)
       * (cover ? (s.pool === "head" ? .55 : .85) : 1) * (s.anti && o.slipI > 0 ? 1.3 : 1) * (dashingIn ? 1.2 : 1) * (f.dashT > 0 && s.r === "p" ? 1.1 : 1) * (a.sw ? 1.08 : 1) * (openG ? 1.15 : 1)
-      * (a.flow > 0 ? 1 + .05 * Math.min(3, a.fn || 1) : 1) * (o.rollI > 0 ? (s.anti >= 1 ? 1.45 : s.pool === "body" ? 1.2 : 1) : 1) * (f.rollHook > 0 && HOOKS.includes(a.type) ? 1.15 : 1);
+      * (a.flow > 0 ? 1 + .05 * Math.min(3, a.fn || 1) : 1) * (clinch ? 1 : stepIn(f) ? 1.08 : f.gs && f.gs.back ? .88 : 1) * (clinch ? 1 : stepIn(o) ? 1.1 : o.gs && o.gs.back ? .9 : 1) * (o.rollI > 0 ? (s.anti >= 1 ? 1.45 : s.pool === "body" ? 1.2 : 1) : 1) * (f.rollHook > 0 && HOOKS.includes(a.type) ? 1.15 : 1);
     if (s.pool === "head") dmg *= clamp(1 - .07 * o.z.chin, .7, 1.3);
     o.dmg[s.pool] = Math.min(130, o.dmg[s.pool] + dmg);
     f.st.sl++; f.st[s.pool]++; F.tal(f, a.type, 1);
@@ -3063,7 +3072,7 @@ void main(){
     if (F.phase !== "break") return;
     F.rd++; F.clock = 0; F.phase = "intro"; F.phaseT = 1.4; F.cmbShow = [null, null];
     for (const f of F.f) {
-      f.st = newStats(); f.mode = "stand"; f.act = null; f.buf = f.buf2 = f.q = null; f.stun = 0; f.kdRd = 0; f.vx = 0; f.vw = 0; f.lvE = 0; f.depth = 0;
+      f.st = newStats(); f.mode = "stand"; f.act = null; f.buf = f.buf2 = f.q = null; f.stun = 0; f.kdRd = 0; f.vx = 0; f.vw = 0; f.lvE = 0; f.gs = null; f.plant = 0; f.lvStep = 0; f.depth = 0;
       f.counterT = f.whiff = f.slipI = f.rollI = f.rollHook = f.pullT = f.sprawlT = f.dashT = f.angleT = f.switchT = f.baited = f.catchT = f.feintT = f.pivI = 0; f.cmb = null; f.snap = null;
       f.rocked = f.rockHits = f.daze = f.rockCd = f.perfectT = 0; f.guard = 100; f.sprawlGood = false; f.charge = false; f.tell = null;
       f.dmg.head *= .66; f.dmg.body *= .85; f.dmg.leg *= .85;
@@ -3142,7 +3151,7 @@ void main(){
     if (F.down) stepDown(F, dt);
     else if (F.g) stepGround(F, dt);
     else if (F.c) stepClinch(F, dt);
-    else { for (const f of F.f) if (f.auto) { autoSpace(F, f, F.f[1 - f.side]); if (!f.manual) autoLat(F, f, F.f[1 - f.side], dt, .8, f.style === "counter" || f.style === "kicker" ? .6 : .4, F.rng2); } stepStand(F, dt); }
+    else { for (const f of F.f) if (f.auto) { autoSpace(F, f, F.f[1 - f.side]); if (!f.manual) autoLat(F, f, F.f[1 - f.side], dt, .8, f.style === "counter" || f.style === "kicker" ? .25 : .15, F.rng2); } stepStand(F, dt); }
     floorStep(F, dt);
     if (F.ended) return;
     if (F.practice) { if (F.clock >= F.roundLen) F.clock = F.roundLen - 1; return; }
@@ -3163,14 +3172,31 @@ void main(){
       const a = f.act;
       let v = 0;
       const canMove = (!a || a.type === "slip" || a.type === "roll" || a.type === "feint" || a.type === "switch") && f.stun <= 0;
-      if (canMove && f.move) {
-        const back = f.move === -f.dir;
-        v = f.move * f.k.speed * (f.blocking ? .55 : 1) * (1 - f.dmg.leg / 190) * (.7 + .3 * stamF(f)) * (back ? .92 : 1) * (f.rocked > 0 ? .6 : 1);
-        if (back && pinned(f)) v = 0;
+      // footwork is steps, not a glide: a step (push off, travel, land) then the feet plant for a beat before the next one.
+      // A step can't be turned around halfway, so every step commits him; holding a direction is a rhythm of steps.
+      // A strike thrown mid-step rides the step in; getting hit, a dash, a shot or leaving the feet cuts it short
+      f.lvStep = 0;
+      if (f.gs && (f.stun > 0 || f.mode !== "stand" || (a && ["dash", "td", "pivot", "fknee", "sprawl", "tie", "flash"].includes(a.type)))) { f.gs = null; f.plant = .1; }
+      if (!f.gs) {
+        f.plant = Math.max(0, (f.plant || 0) - dt);
+        const sh = F.f[1 - f.side].act;   // he shoots: backing off it is never held up by the plant
+        if (sh && (sh.type === "td" || sh.type === "flash") && !sh.done && f.move === -f.dir) f.plant = 0;
+        if (canMove && f.plant <= 0 && f.mode === "stand") {
+          const adv = f.move && !(f.move === -f.dir && pinned(f)) ? f.move : 0, lat = Math.abs(f.lat || 0) >= .15 && !(f.latB > 0) ? f.lat : 0;
+          if (adv || lat) {
+            const back = adv === -f.dir, sp = f.k.speed * (f.blocking ? .55 : 1) * (1 - f.dmg.leg / 190) * (.7 + .3 * stamF(f)) * (back ? .92 : 1) * (f.rocked > 0 ? .6 : 1);
+            const len = STRIDE * f.k.size * (adv ? 1 : .8) * (back ? .9 : 1);
+            f.gs = { adv, lat: lat ? Math.sign(lat) * clamp(Math.abs(lat) / .6, .5, 1) * (adv ? .7 : 1) : 0, len, t: 0, dur: clamp(len / (sp * 1.2), .14, .42), back };
+          }
+        }
       }
-      // walking eases in and out (about 60 ms), so starts, stops and turnarounds don't snap; dashes, shots and lunges are direct
-      f.vw = (f.vw || 0) + (v - (f.vw || 0)) * (1 - Math.exp(-dt * WALK_EASE)); v = Math.abs(f.vw) < .5 && !v ? 0 : f.vw;
-      if (a && a.type === "dash") v = a.dir * f.dir * (a.dir > 0 ? 560 : 500) * (1 - f.dmg.leg / 260);
+      if (f.gs) {
+        const g = f.gs; g.t += dt; const u = g.t / g.dur, k = gaitProf(u) / g.dur;
+        v = g.adv * g.len * k; f.lvStep = g.lat * g.len * k; g.u = Math.min(1, u);
+        if (u >= 1) { f.gs = null; f.plant = f.blocking ? .12 : PLANT; f.lastStep = { adv: g.adv, lat: g.lat, len: g.len, back: g.back }; }
+      }
+      f.vw = v;
+      if (a && a.type === "dash") v = a.dir * f.dir * (a.dir > 0 ? 560 : 500) * (1 - f.dmg.leg / 260) * gaitProf(a.t / a.dur);
       if (a && a.type === "td" && !a.done && a.t >= (a.tele || 0)) v = f.dir * 230;
       if (a && a.type === "fknee" && !a.done && a.t >= a.tele) v = f.dir * 170;
       if (a && ST[a.type] && ST[a.type].r === "p" && !a.done) v += f.dir * 40;
@@ -3197,11 +3223,10 @@ void main(){
       let lv = 0;
       if (a && a.type === "pivot" && a.lat) lv = a.lat;
       else if ((!a || a.type === "slip" || a.type === "roll" || a.type === "feint" || a.type === "switch") && f.stun <= 0) {
-        if (f.latB > 0) { f.latB = Math.max(0, f.latB - dt); lv = f.latBD * f.k.speed * 1.15; }
-        else if (f.lat) lv = f.lat * f.k.speed * .6 * (f.blocking ? .55 : 1) * (1 - f.dmg.leg / 190) * (.7 + .3 * stamF(f)) * (f.rocked > 0 ? .6 : 1);
+        if (f.latB > 0) { f.latB = Math.max(0, f.latB - dt); lv = f.latBD * f.k.speed * 1.15 * gaitProf(1 - f.latB / (f.latB0 || .2)); }
+        else lv = f.lvStep || 0;
       }
-      // circling eases too (the burst after a slip / pivot stays sharp)
-      if (!(a && a.type === "pivot") && !(f.latB > 0)) { f.lvE = (f.lvE || 0) + (lv - (f.lvE || 0)) * (1 - Math.exp(-dt * WALK_EASE * .75)); lv = Math.abs(f.lvE) < .5 && !lv ? 0 : f.lvE; } else f.lvE = lv;
+      f.lvE = lv;
       if (!lv) continue;
       // circle around him: lateral step, then hold the distance (an orbit, not a drift)
       const [nx, nz] = leftOf(F, f), d0 = Math.hypot(o.wx - f.wx, o.wz - f.wz);
@@ -3226,7 +3251,7 @@ void main(){
     f.lat = f.act && ST[f.act.type] ? 0 : f.latV;
   }
   // a quick step to an angle (after a slip or a perfect slip): lateral burst toward the open side
-  function angleStep(F, f, secs) { if (f.mode !== "stand") return; f.latB = secs; f.latBD = latToCenter(F, f); f.angleT = Math.max(f.angleT, secs + .35); }
+  function angleStep(F, f, secs) { if (f.mode !== "stand") return; f.latB = f.latB0 = secs; f.gs = null; f.latBD = latToCenter(F, f); f.angleT = Math.max(f.angleT, secs + .35); }
   function stepDown(F, dt) {
     const D = F.down, v = D.victim, a = D.att;
     D.t += dt; D.lock = Math.max(0, D.lock - dt); D.flash = Math.max(0, D.flash - dt);
@@ -4009,7 +4034,7 @@ void main(){
   };
   const KEYBTN = n => n.startsWith("@") ? ({ "@grapple": "grapple", "@tap": "defend", "@block": "defend", "@left": "left", "@right": "right" })[n] : ["feint", "switch", "super"].includes(n) ? n : n.startsWith("pivot") ? "up" : ST[n] && ST[n].kick ? "kick" : "punch";
   const MOVES = [
-    ["Footwork", "Automatic: your fighter keeps his own range and circles off the fence (classic pad: hold ◀ ▶)", "A D or ← → to override"],
+    ["Footwork", "Real steps: each one commits (no turning round halfway) and the feet plant between steps. Automatic keeps your range with a few steps and gets you off the fence (classic pad: hold ◀ ▶). A strike off a step forward reaches further and hits harder; walking onto his shot hurts more; a side step makes straight shots miss", "A D or ← → to override"],
     ["Dash in / step back", "Left zone: swipe toward him / away from him (a short flick works)", "Double-tap A or D"],
     ["Pivot (new angle, off the fence)", "Left zone: swipe ↑ (classic: tap ▲ or ▼)", "Q or ↑"],
     ["Punch button (strike pad)", "Tap jab · swipe toward him cross · ↑ hook (left, then right) · ↓ to the body · away uppercut · hold overhand · hold then ↑ spinning back fist", "J jab · K cross · U / I hooks · H / N body · O uppercut · Y overhand"],
@@ -4886,6 +4911,31 @@ void main(){
       if (k === "stepF") T.ph += dF / g; else T.pl += dL * (flip ? -1 : 1) / g;
       if (Math.abs(dL) > .05) T.dLs = dL * (flip ? -1 : 1);   // which way he's going sideways, in the clip's terms
       T.lk = k;
+      // the stepping footwork (live fight): one clip per game step, from push-off to landing, with the clip's own stride
+      // scaled to the game's step (sx) so the planted foot stays planted; between steps it eases back to the stance
+      // a dash (the step-in to strike, the bounce out, a full dash): one step too, sized to how far the dash carries him
+      const da = f.act && f.act.type === "dash" ? f.act : null;
+      if (da && force && Object.prototype.hasOwnProperty.call(f, "gs") && cF) {
+        const gg = (cF.travel || 1) * f.k.size * 90 / (cF.leg || 90), len = (da.dir > 0 ? 560 : 500) * (1 - f.dmg.leg / 260) * da.dur;
+        const ut = (1 - Math.cos(Math.PI * clamp(da.t / da.dur, 0, 1))) / 2;
+        T.gk = "stepF"; T.gt = mcProg(cF, da.dir < 0 ? 1 - ut : ut); T.gsx = clamp(len / gg, .15, 1.2); T.gw = 1; T.gp = 0; T.lk = "stepF";
+        return { k: "stepF", t: T.gt, w: 1, sx: T.gsx };
+      }
+      const gs = f.gs && !force ? f.gs : null;
+      if (Object.prototype.hasOwnProperty.call(f, "gs") && !force) {
+        if (gs) {
+          const kk = Math.abs(gs.lat) > Math.abs(gs.adv) * .9 && cL ? "stepL" : cF ? "stepF" : "stepL", cc = MCK[kk];
+          const fl = (cc.lead === "R") !== (f.stance === -1), gg = (cc.travel || 1) * f.k.size * 90 / (cc.leg || 90);
+          const ut = (1 - Math.cos(Math.PI * clamp(gs.u || 0, 0, 1))) / 2, rev = kk === "stepF" ? gs.back : (T.dLs || 1) < 0;
+          const len = kk === "stepF" ? gs.len * Math.max(Math.abs(gs.adv), .01) : gs.len * Math.abs(gs.lat);
+          T.gk = kk; T.gt = mcProg(cc, rev ? 1 - ut : ut); T.gsx = clamp(len / gg, .15, 1.2); T.gw = 1; T.gp = 0; T.lk = kk;
+          return { k: kk, t: T.gt, w: 1, sx: T.gsx };
+        }
+        // planted: hold the landing pose (the next step usually follows), then settle into the stance
+        T.gp = (T.gw >= 1 ? T.gp || 0 : 0) + gdt; if (T.gp > .3) T.gw = Math.max(0, (T.gw || 0) - gdt * 5); else T.gp = T.gp;
+        if (T.gw >= 1 && T.gp <= .3) return T.gk ? { k: T.gk, t: T.gt, w: 1, sx: T.gsx } : null;
+        return T.gw > .01 && T.gk ? { k: T.gk, t: T.gt, w: T.gw, sx: T.gsx } : null;
+      }
       const u = (((k === "stepF" ? T.ph : T.pl) % 1) + 1) % 1, w = force ? 1 : clamp((T.vs - 8) / (f.k.speed * .2), 0, 1);
       return w > .01 ? { k, t: mcProg(c, u), w } : null;
     }
@@ -5104,7 +5154,7 @@ void main(){
     };
   }
 
-  window.MMAArcade = { start, version: "3.2", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
+  window.MMAArcade = { start, version: "3.3", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
 })();
 </script>
 <script>
