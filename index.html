@@ -1089,6 +1089,36 @@ html.sheet-open{overflow:hidden}
 @media (min-width:700px){.ma-sp .ma-zones{grid-template-columns:minmax(0,1fr) 96px minmax(0,1.3fr)}.ma-sd{font-size:13.5px}.ma-sf .ma-sd{font-size:12px}.ma-sb>b{font-size:22px}}
 .ma-land.ma-cz.ma-spon .ma-spad{background:transparent;padding:4px}
 .ma-land.ma-cz .ma-sb{background:rgba(15,22,34,.5);border-color:rgba(255,255,255,.12)}
+/* ---------- v3.4: landscape = a full-screen game; controls in the corners over the cage, the middle left clear */
+.mma-arc.ma-landfull{position:fixed;inset:0;z-index:60;display:block;margin:0;max-width:none;width:100vw;height:100vh;height:100dvh;background:#0b111b;overflow:hidden;padding:0;border-radius:0;--lf-l:max(10px,env(safe-area-inset-left));--lf-r:max(10px,env(safe-area-inset-right));--lf-b:max(8px,env(safe-area-inset-bottom));--lf-rw:min(33vw,300px);--lf-rh:min(52vh,222px);--lf-lw:min(25vw,224px);--lf-lh:min(48vh,196px)}
+.mma-arc.ma-landfull .ma-stage{position:absolute;inset:0;border:0;border-radius:0;min-height:0}
+.mma-arc.ma-landfull .ma-hud{position:absolute;top:max(4px,env(safe-area-inset-top));left:var(--lf-l);right:var(--lf-r);z-index:4;padding:3px 10px;background:linear-gradient(180deg,rgba(14,20,32,.86),rgba(14,20,32,.5));border-color:rgba(255,255,255,.08)}
+.mma-arc.ma-landfull .ma-hbl{display:none}
+.mma-arc.ma-landfull .ma-zonewrap{position:absolute;inset:0;top:0!important;display:block;max-width:none;margin:0;padding:0;pointer-events:none;z-index:3}
+.mma-arc.ma-landfull .ma-coach{display:none}
+.mma-arc.ma-landfull .ma-zones{position:absolute;inset:0;display:block;height:auto;pointer-events:none}
+.mma-arc.ma-landfull .ma-zones>*, .mma-arc.ma-landfull .ma-zchips>*{pointer-events:auto}
+.mma-arc.ma-landfull .ma-zone{position:absolute;bottom:var(--lf-b);background:rgba(22,30,44,.3);border-color:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.mma-arc.ma-landfull .ma-zone.on{background:rgba(40,52,74,.42)}
+.mma-arc.ma-landfull .ma-zl{left:var(--lf-l);width:var(--lf-lw);height:var(--lf-lh);padding:8px 10px}
+.mma-arc.ma-landfull .ma-zl .ma-zh{display:grid}
+.ma-spon .ma-zr>.ma-zt,.ma-spon .ma-zr>.ma-zf{visibility:hidden}
+.mma-arc.ma-landfull .ma-zl .ma-zh{font-size:12px;gap:1px} .mma-arc.ma-landfull .ma-zl .ma-zh b{min-width:2.3em}
+.mma-arc.ma-landfull .ma-zr{right:var(--lf-r);width:var(--lf-rw);height:var(--lf-rh);text-align:left}
+.mma-arc.ma-landfull .ma-zr .ma-zh{display:none}
+.mma-arc.ma-landfull .ma-zt{font-size:15px;opacity:.9}
+.mma-arc.ma-landfull .ma-grap{position:absolute;bottom:calc(var(--lf-b) + var(--lf-rh) + 8px);right:var(--lf-r);width:min(150px,calc(var(--lf-rw) * .5));height:44px;border-radius:22px;padding:0 10px;background:rgba(31,42,61,.72);border-top-width:1px;box-shadow:inset 0 0 0 2px rgba(63,207,142,.55);grid-auto-flow:column;gap:6px;align-items:center}
+.mma-arc.ma-landfull .ma-grap .ma-glb{font-size:11px;max-width:70px} .mma-arc.ma-landfull .ma-grap small{font-size:9px}
+.mma-arc.ma-landfull .ma-zchips{position:absolute;left:var(--lf-l);bottom:calc(var(--lf-b) + var(--lf-lh) + 8px);display:flex;gap:6px;pointer-events:none}
+.mma-arc.ma-landfull .ma-zchips .ma-chip{min-height:34px;padding:0 11px;font-size:12px;background:rgba(10,15,24,.66);border-color:rgba(255,255,255,.14)}
+.mma-arc.ma-landfull .ma-zchips .ma-stance{display:none}
+.mma-arc.ma-landfull.ma-spon .ma-spad{background:transparent;padding:0;gap:6px}
+.mma-arc.ma-landfull .ma-sb{background:rgba(15,22,34,.58);border-color:rgba(255,255,255,.14)}
+.mma-arc.ma-landfull .ma-sb>b{font-size:18px} .mma-arc.ma-landfull .ma-sd{font-size:12px}
+.mma-arc.ma-landfull .ma-gym{top:calc(max(4px,env(safe-area-inset-top)) + 52px)}
+.mma-arc.ma-landfull.ma-gymon .ma-zchips{visibility:hidden}
+.mma-arc.ma-landfull.ma-kocard .ma-zonewrap{visibility:hidden}
+.mma-arc.ma-landfull .ma-edge,.mma-arc.ma-landfull .ma-gym,.mma-arc.ma-landfull .ma-ko{z-index:5}
 </style>
 <style>
 /* arcade mode (arcade.css above): a full-viewport overlay with safe-area insets; the page underneath is locked and inert */
@@ -3998,7 +4028,7 @@ void main(){
     for (const side of [0, 1]) {
       const c = F.cmbShow[side]; if (!c || F.phase !== "fight") continue;
       ctx.globalAlpha = c.t > 1 ? (1.4 - c.t) / .4 : 1;
-      const big = Math.round(clamp(w * .07, 22, 34)), x = side ? w - 12 : 12, y = h - 22;
+      const big = Math.round(clamp(w * .07, 22, 34)), x = side ? w - 12 : 12, y = V.full ? (V.top || 0) + big + 48 : h - 22;   // full-screen landscape: up under the HUD, clear of the controls
       ctx.textAlign = side ? "right" : "left"; ctx.textBaseline = "alphabetic";
       ctx.font = font(900, big); ctx.lineWidth = 4; ctx.strokeStyle = "rgba(5,8,14,.85)";
       const t1 = `×${c.n}`; ctx.strokeText(t1, x, y); ctx.fillStyle = side ? "#7fb4ff" : "#ffb547"; ctx.fillText(t1, x, y); const tw1 = ctx.measureText(t1).width;
@@ -4269,22 +4299,26 @@ void main(){
       const was = land;
       land = opts.landscape !== false && window.innerWidth > window.innerHeight && window.innerHeight < 560 && window.innerWidth >= 560;
       root.classList.toggle("ma-land", land);
-      if (land && !was) setTimeout(() => { try { root.scrollIntoView({ block: "start" }); } catch (e) { } }, 0);
+      // landscape with the zone layouts: a full-screen game, the controls over the corners of the cage
+      root.classList.toggle("ma-landfull", land && mode === "zones");
+      V.full = land && mode === "zones";
+      if (land && !was && mode !== "zones") setTimeout(() => { try { root.scrollIntoView({ block: "start" }); } catch (e) { } }, 0);
     }
     function size() {
       layout();
       const w = Math.max(220, Math.floor(stage.clientWidth));
       const hud = $(".ma-hud").offsetHeight, above = clamp(root.getBoundingClientRect().top + (window.scrollY || 0), 0, 120);
       const ctlH = mode === "zones" ? $(".ma-zonewrap").offsetHeight : $(".ma-pad").offsetHeight;
-      const avail = land ? window.innerHeight - hud - 14 : (window.innerHeight || 800) - above - hud - ctlH - 30;
-      const h = Math.round(clamp(land ? avail : Math.min(w * (w < 600 ? .92 : .56), avail), 180, 470));
+      const full = land && mode === "zones";
+      const avail = full ? window.innerHeight : land ? window.innerHeight - hud - 14 : (window.innerHeight || 800) - above - hud - ctlH - 30;
+      const h = Math.round(clamp(land ? avail : Math.min(w * (w < 600 ? .92 : .56), avail), 180, full ? 600 : 470));
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       if (V.w === w && V.h === h && V.dpr === dpr) return;
       V.w = w; V.h = h; V.dpr = dpr;
       cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.width = w + "px"; cv.style.height = h + "px";
       stage.style.height = h + "px";
       if (r3d) r3d.resize(w, h, Math.min(dpr, +opts.maxDpr || 2));
-      $(".ma-zonewrap").style.top = land && mode === "zones" ? stage.offsetTop + "px" : "";
+      $(".ma-zonewrap").style.top = "";
     }
     size();
     const ro = window.ResizeObserver ? new ResizeObserver(() => size()) : null; if (ro) ro.observe(stage);
@@ -5073,7 +5107,7 @@ void main(){
     }
     function draw(dt) {
       const { w, h, dpr } = V, a = F.f[0], b = F.f[1], ed = $(".ma-edge");
-      V.edgeOn = !!(ed && !ed.hidden); V.top = land && mode === "zones" ? 54 : 0;
+      V.edgeOn = !!(ed && !ed.hidden); V.top = land && mode === "zones" ? $(".ma-hud").offsetHeight + 10 : 0;
       if (is3d()) { draw3d(dt || 1 / 60, null); return; }
       V.fx = V.fy = V.pt = null; V.flip = false; V.latScr = 1;
       const dist = Math.abs(a.x - b.x);
@@ -5161,7 +5195,7 @@ void main(){
     };
   }
 
-  window.MMAArcade = { start, version: "3.3.2", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
+  window.MMAArcade = { start, version: "3.4", _sim: sim, _core: { createFight, createAI, step, cmd, hold, move, nextRound, archetype, styleScores, pinned, backRoom, zoneAction, zoneStrike, zoneCtx, escZone, matchup, capGap, startGround, startClinch, knockdown, rock, startSub, syncLine, toWorld, CAGE_AP, DIFF, ST, BEAT, SUPN } };
 })();
 </script>
 <script>
